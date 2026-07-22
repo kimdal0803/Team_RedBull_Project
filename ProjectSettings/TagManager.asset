@@ -15,7 +15,7 @@ TagManager:
   - UI
   - Ground
   - Enemy
-  - 
+  - PlayerAttack
   - 
   - 
   - 
@@ -40,6 +40,9 @@ TagManager:
   - 
   - 
   m_SortingLayers:
+  - name: BackGround
+    uniqueID: 96633935
+    locked: 0
   - name: Default
     uniqueID: 0
     locked: 0

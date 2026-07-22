@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("UI 연결")]
+    [SerializeField] private PlayerUI playerUI; // Canvas 또는 PlayerUI 스크립트 연결
+
     [Header("이동 및 점프")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float jumpForce = 10f;
@@ -68,6 +71,12 @@ public class PlayerMovement : MonoBehaviour
         {
             attackArea.SetActive(false);
         }
+
+        // 게임 시작 시 체력바 초기화
+        if (playerUI != null)
+        {
+            playerUI.UpdateHPBar(_currentHealth, maxHealth);
+        }
     }
 
     void Update()
@@ -116,7 +125,7 @@ public class PlayerMovement : MonoBehaviour
             _animator.SetInteger("AnimState", isMoving ? 1 : 0);
             _animator.SetBool("IsGrounded", _isGrounded);
 
-            // ⭐ [절벽 낙하 처리] 점프 키를 안 눌렀어도 공중에 떠서 떨어지고 있다면 Fall 애니메이션 재생
+            // 절벽 낙하 처리
             if (!_isGrounded && _rb.linearVelocity.y < -0.1f && !_isAttacking)
             {
                 _animator.Play("Hero_Fall");
@@ -298,6 +307,12 @@ public class PlayerMovement : MonoBehaviour
         _currentHealth -= damage;
         Debug.Log($"플레이어 피격! 남은 체력: {_currentHealth}");
 
+        // 피격 시 체력바 업데이트
+        if (playerUI != null)
+        {
+            playerUI.UpdateHPBar(_currentHealth, maxHealth);
+        }
+
         if (_currentHealth <= 0) Die();
         else StartCoroutine(HitRoutine(knockbackDir));
     }
@@ -325,6 +340,12 @@ public class PlayerMovement : MonoBehaviour
     {
         _isDead = true;
         _rb.linearVelocity = Vector2.zero;
+
+        if (playerUI != null)
+        {
+            playerUI.UpdateHPBar(0, maxHealth);
+        }
+
         if (_animator != null) _animator.SetTrigger("Die");
         Debug.Log("플레이어 사망!");
     }
