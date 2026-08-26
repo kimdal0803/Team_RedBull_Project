@@ -4,13 +4,16 @@ using UnityEngine.SceneManagement;
 public class ScenePortal : MonoBehaviour
 {
     [Header("이동할 씬 이름")]
-    [SerializeField] private string targetSceneName = "GameScene";
+    [SerializeField] private string targetSceneName = "BossTestScene";
 
-    [Header("상호작용 키")]
-    [SerializeField] private KeyCode interactKey = KeyCode.F;
+    [Header("상호작용 키 설정")]
+    [Tooltip("기본값: 방향키 위쪽(UpArrow)")]
+    [SerializeField] private KeyCode interactKey = KeyCode.UpArrow;
+    [Tooltip("W키로도 입장 가능하게 할지 여부")]
+    [SerializeField] private bool allowWKey = true;
 
     [Header("상호작용 안내 UI (선택사항)")]
-    [SerializeField] private GameObject interactGuideUI; // "F키를 눌러 입장" 같은 안내 텍스트/아이콘
+    [SerializeField] private GameObject interactGuideUI; // "↑ 키를 눌러 입장" 안내 UI
 
     private bool _isPlayerNearby = false;
 
@@ -24,10 +27,21 @@ public class ScenePortal : MonoBehaviour
 
     void Update()
     {
-        // 플레이어가 범위 안에 있고 상호작용 키를 누르면 씬 전환
-        if (_isPlayerNearby && Input.GetKeyDown(interactKey))
+        if (!_isPlayerNearby) return;
+
+        // 방향키 위(UpArrow) 또는 W 키 입력 시 부드러운 씬 전환
+        if (Input.GetKeyDown(interactKey) || (allowWKey && Input.GetKeyDown(KeyCode.W)))
         {
-            SceneManager.LoadScene(targetSceneName);
+            Time.timeScale = 1f;
+
+            if (SceneFader.Instance != null)
+            {
+                SceneFader.Instance.FadeToScene(targetSceneName);
+            }
+            else
+            {
+                SceneManager.LoadScene(targetSceneName);
+            }
         }
     }
 

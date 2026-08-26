@@ -3,6 +3,12 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
+    // 씬 이동(로비 -> BossTest) 시 강화된 스탯 보존용 static 변수
+    public static int savedAttack = -1;
+    public static int savedMaxHp = -1;
+    public static float savedSpeed = -1f;
+    public static float savedJump = -1f;
+
     [Header("UI 연결")]
     [SerializeField] private PlayerUI playerUI;
 
@@ -12,7 +18,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private Transform groundCheck;
     [SerializeField] private LayerMask groundLayer;
 
-    [Header("대시 세팅")]
+    [Header("대시(회피) 세팅")]
     [SerializeField] private float dashSpeed = 16f;
     [SerializeField] private float dashDuration = 0.18f;
     [SerializeField] private float dashCooldown = 0.8f;
@@ -33,11 +39,29 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] private float step2DashForce = 3.2f;
     [SerializeField] private int baseAttackDamage = 1;
 
+    [Header("패링(Parry) 세팅")]
+    [SerializeField] private float parryWindow = 0.25f;
+    [SerializeField] private float parryCooldown = 0.8f; // 회피와 동일한 0.8초 쿨타임
+    [SerializeField] private Color parryColor = Color.cyan;
+    [SerializeField] private GameObject parryTextUI;
+    private float _parryTimer = 0f;
+    private bool _canParry = true; // 패링 가능 여부 플래그
+    public bool IsParrying => _parryTimer > 0f;
+
     [Header("피격 및 넉백")]
     [SerializeField] private int maxHealth = 5;
     [SerializeField] private float knockbackForce = 5f;
     [SerializeField] private float flashDuration = 0.1f;
+    [Tooltip("피격 애니메이션(Hero_TakeHit) 및 경직 유지 시간")]
+    [SerializeField] private float hitStunDuration = 0.35f;
     [SerializeField] private Color hitColor = Color.red;
+
+    // 외부 UI/매니저에서 읽을 수 있는 프로퍼티
+    public int CurrentHealth => _currentHealth;
+    public int MaxHealth => maxHealth;
+    public int BaseAttackDamage => baseAttackDamage;
+    public float MoveSpeed => moveSpeed;
+    public float JumpForce => jumpForce;
 
     private int _currentHealth;
     private float _horizontalInput;
@@ -63,11 +87,18 @@ public class PlayerMovement : MonoBehaviour
     private readonly Vector2 _boxSize = new Vector2(0.4f, 0.2f);
 
     private float _facingDirection = 1f;
-    private float _dashDirection = 1f; // [추가] 대시 발동 시점의 정확한 방향 저장
+    private float _dashDirection = 1f;
     private Coroutine _attackCoroutine;
+    private Coroutine _parryCoroutine;
+    private Coroutine _parryTextCoroutine;
 
     void Start()
     {
+        if (savedAttack != -1) baseAttackDamage = savedAttack;
+        if (savedMaxHp != -1) maxHealth = savedMaxHp;
+        if (savedSpeed != -1f) moveSpeed = savedSpeed;
+        if (savedJump != -1f) jumpForce = savedJump;
+
         _currentHealth = maxHealth;
         _rb = GetComponent<Rigidbody2D>();
         _spriteRenderer = GetComponent<SpriteRenderer>();
@@ -83,6 +114,11 @@ public class PlayerMovement : MonoBehaviour
             attackArea.SetActive(false);
         }
 
+        if (parryTextUI != null)
+        {
+            parryTextUI.SetActive(false);
+        }
+
         if (playerUI != null)
         {
             playerUI.UpdateHPBar(_currentHealth, maxHealth);
@@ -92,6 +128,11 @@ public class PlayerMovement : MonoBehaviour
     void Update()
     {
         if (_isDead) return;
+
+        if (_parryTimer > 0f)
+        {
+            _parryTimer -= Time.deltaTime;
+        }
 
         if (groundCheck != null)
         {
@@ -104,12 +145,10 @@ public class PlayerMovement : MonoBehaviour
         }
         _wasGrounded = _isGrounded;
 
-        // 1. 공격 중 대시 캔슬 (현재 누른 방향키를 즉시 반영)
+        // 1. 대시/회피 (LeftShift)
         if (Input.GetKeyDown(KeyCode.LeftShift) && _canDash && !_isKnockedBack)
         {
             float currentInput = Input.GetAxisRaw("Horizontal");
-
-            // 대시를 누른 순간 방향키를 누르고 있었다면 그 방향으로 즉시 전환
             if (currentInput != 0)
             {
                 _facingDirection = currentInput;
@@ -120,8 +159,8 @@ public class PlayerMovement : MonoBehaviour
             StartCoroutine(DashRoutine());
         }
 
-        // 2. 공격 입력
-        if (Input.GetKeyDown(KeyCode.Z) && !_isKnockedBack && !_isDashing)
+        // 2. 공격 (Z키)
+        if (Input.GetKeyDown(KeyCode.Z) && !_isKnockedBack && !_isDashing && !IsParrying)
         {
             if (!_isAttacking && !_isAttackCoolingDown)
             {
@@ -137,8 +176,14 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        // 3. 이동 및 방향 전환 조작
-        if (!_isKnockedBack && !_isDashing)
+        // 3. 패링 (F키 또는 마우스 우클릭 - 쿨타임 검사 추가)
+        if ((Input.GetKeyDown(KeyCode.F) || Input.GetMouseButtonDown(1)) && _canParry && !_isKnockedBack && !_isDashing && !IsParrying)
+        {
+            TriggerParry();
+        }
+
+        // 4. 이동 조작
+        if (!_isKnockedBack && !_isDashing && !IsParrying)
         {
             float rawInput = Input.GetAxisRaw("Horizontal");
 
@@ -193,7 +238,7 @@ public class PlayerMovement : MonoBehaviour
             }
         }
 
-        if (_animator != null && !_isDashing && !_isAttacking)
+        if (_animator != null && !_isDashing && !_isAttacking && !_isKnockedBack && !IsParrying)
         {
             bool isMoving = Mathf.Abs(_horizontalInput) > 0.01f;
             _animator.SetInteger("AnimState", isMoving ? 1 : 0);
@@ -206,9 +251,66 @@ public class PlayerMovement : MonoBehaviour
         }
     }
 
+    private void TriggerParry()
+    {
+        _parryTimer = parryWindow;
+        _canParry = false; // 패링 쿨타임 시작
+
+        if (_isAttacking)
+        {
+            if (_attackCoroutine != null) StopCoroutine(_attackCoroutine);
+            if (attackArea != null) attackArea.SetActive(false);
+            _isAttacking = false;
+            _comboStep = 0;
+            _bufferedAttack2 = false;
+        }
+
+        if (_parryCoroutine != null) StopCoroutine(_parryCoroutine);
+        _parryCoroutine = StartCoroutine(ParryActionRoutine());
+        StartCoroutine(ParryCooldownRoutine());
+    }
+
+    private IEnumerator ParryActionRoutine()
+    {
+        if (_animator != null)
+        {
+            _animator.Play("Hero_Parry", 0, 0f);
+        }
+
+        if (_spriteRenderer != null)
+        {
+            _spriteRenderer.color = parryColor;
+        }
+
+        yield return new WaitForSeconds(parryWindow);
+
+        if (_spriteRenderer != null && !_isKnockedBack && !_isDashing && !_isDead)
+        {
+            _spriteRenderer.color = _originalColor;
+        }
+
+        if (!_isDead && !_isKnockedBack && !_isDashing && _animator != null)
+        {
+            if (_isGrounded)
+            {
+                _animator.Play(Mathf.Abs(_horizontalInput) > 0.01f ? "Hero_Run" : "Hero_Idle", 0, 0f);
+            }
+            else
+            {
+                _animator.Play("Hero_Fall", 0, 0f);
+            }
+        }
+    }
+
+    private IEnumerator ParryCooldownRoutine()
+    {
+        yield return new WaitForSeconds(parryCooldown);
+        _canParry = true;
+    }
+
     private void OnLanded()
     {
-        if (_animator == null) return;
+        if (_animator == null || _isKnockedBack || _isDead || IsParrying) return;
 
         _animator.ResetTrigger("Jump");
         _animator.SetBool("IsGrounded", true);
@@ -232,7 +334,6 @@ public class PlayerMovement : MonoBehaviour
     {
         if (_isDead) return;
 
-        // [수정됨] 대시 발동 시 기록된 방향(_dashDirection)으로 확정 이동
         if (_isDashing)
         {
             _rb.linearVelocity = new Vector2(_dashDirection * dashSpeed, 0f);
@@ -241,12 +342,13 @@ public class PlayerMovement : MonoBehaviour
 
         if (!_isKnockedBack)
         {
-            if (_isAttacking && _isGrounded)
+            if (IsParrying && _isGrounded)
             {
-                if (_comboStep == 1)
-                {
-                    _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
-                }
+                _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
+            }
+            else if (_isAttacking && _isGrounded)
+            {
+                if (_comboStep == 1) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
             }
             else
             {
@@ -270,22 +372,20 @@ public class PlayerMovement : MonoBehaviour
         _bufferedAttack2 = false;
         _hasTurnedDuringStep2 = false;
 
-        if (_isGrounded)
-        {
-            _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
-        }
+        if (_isGrounded) _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
 
         if (_animator != null)
         {
-            _animator.Play("Hero_Attack1", 0, 0f);
+            _animator.Play("Hero_Attack1", -1, 0f);
+            _animator.Update(0f);
         }
 
+        if (attackArea != null) attackArea.SetActive(false);
+        yield return null;
         if (attackArea != null) attackArea.SetActive(true);
 
         yield return new WaitForSeconds(attack1Duration * 0.45f);
-
         if (attackArea != null) attackArea.SetActive(false);
-
         yield return new WaitForSeconds(attack1Duration * 0.55f);
 
         if (_isGrounded && _bufferedAttack2)
@@ -298,17 +398,18 @@ public class PlayerMovement : MonoBehaviour
 
             if (_animator != null)
             {
-                _animator.Play("Hero_Attack2", 0, 0f);
+                _animator.Play("Hero_Attack2", -1, 0f);
+                _animator.Update(0f);
             }
 
+            if (attackArea != null) attackArea.SetActive(false);
+            yield return null;
             if (attackArea != null) attackArea.SetActive(true);
 
             yield return new WaitForSeconds(attack2Duration * 0.35f);
             _rb.linearVelocity = new Vector2(0f, _rb.linearVelocity.y);
-
             yield return new WaitForSeconds(attack2Duration * 0.15f);
             if (attackArea != null) attackArea.SetActive(false);
-
             yield return new WaitForSeconds(attack2Duration * 0.5f);
         }
 
@@ -317,15 +418,16 @@ public class PlayerMovement : MonoBehaviour
         _hasTurnedDuringStep2 = false;
         _isAttacking = false;
 
-        if (_animator != null && _isGrounded)
+        if (_animator != null && !_isKnockedBack && !_isDashing && !IsParrying)
         {
-            if (Mathf.Abs(_horizontalInput) > 0.01f)
+            if (_isGrounded)
             {
-                _animator.Play("Hero_Run", 0, 0f);
+                _animator.Play("Hero_Idle", -1, 0f);
+                _animator.SetInteger("AnimState", 0);
             }
             else
             {
-                _animator.Play("Hero_Idle", 0, 0f);
+                _animator.Play("Hero_Fall", -1, 0f);
             }
         }
 
@@ -342,11 +444,7 @@ public class PlayerMovement : MonoBehaviour
         _bufferedAttack2 = false;
         _isAttacking = false;
 
-        if (_animator != null)
-        {
-            _animator.Play("Hero_Fall", 0, 0f);
-        }
-
+        if (_animator != null && !_isKnockedBack) _animator.Play("Hero_Fall", 0, 0f);
         StartCoroutine(AttackCooldownRoutine(singleAttackCooldown));
     }
 
@@ -359,12 +457,7 @@ public class PlayerMovement : MonoBehaviour
 
     public int GetDamage()
     {
-        return _comboStep switch
-        {
-            1 => baseAttackDamage,
-            2 => baseAttackDamage * 2,
-            _ => baseAttackDamage
-        };
+        return _comboStep == 2 ? (baseAttackDamage * 2) : baseAttackDamage;
     }
 
     private IEnumerator DashRoutine()
@@ -385,16 +478,9 @@ public class PlayerMovement : MonoBehaviour
 
         int playerLayer = gameObject.layer;
         int enemyLayerIndex = LayerMask.NameToLayer("Enemy");
-        if (enemyLayerIndex != -1)
-        {
-            Physics2D.IgnoreLayerCollision(playerLayer, enemyLayerIndex, true);
-        }
+        if (enemyLayerIndex != -1) Physics2D.IgnoreLayerCollision(playerLayer, enemyLayerIndex, true);
 
-        if (_spriteRenderer != null)
-        {
-            _spriteRenderer.color = dashColor;
-        }
-
+        if (_spriteRenderer != null) _spriteRenderer.color = dashColor;
         if (_animator != null)
         {
             _animator.SetInteger("AnimState", 1);
@@ -404,27 +490,14 @@ public class PlayerMovement : MonoBehaviour
 
         float originalGravity = _rb.gravityScale;
         _rb.gravityScale = 0f;
-
         StartCoroutine(SpawnGhostsRoutine());
 
         yield return new WaitForSeconds(dashDuration);
 
         _rb.gravityScale = originalGravity;
-
-        if (_spriteRenderer != null)
-        {
-            _spriteRenderer.color = _originalColor;
-        }
-
-        if (_animator != null)
-        {
-            _animator.speed = 1f;
-        }
-
-        if (enemyLayerIndex != -1)
-        {
-            Physics2D.IgnoreLayerCollision(playerLayer, enemyLayerIndex, false);
-        }
+        if (_spriteRenderer != null) _spriteRenderer.color = _originalColor;
+        if (_animator != null) _animator.speed = 1f;
+        if (enemyLayerIndex != -1) Physics2D.IgnoreLayerCollision(playerLayer, enemyLayerIndex, false);
 
         _isDashing = false;
         _isInvincible = false;
@@ -445,7 +518,6 @@ public class PlayerMovement : MonoBehaviour
     private void CreateGhost()
     {
         if (_spriteRenderer == null) return;
-
         GameObject ghostObj = new GameObject("DashGhost");
         ghostObj.transform.position = transform.position;
         ghostObj.transform.localScale = transform.localScale;
@@ -463,75 +535,192 @@ public class PlayerMovement : MonoBehaviour
     {
         float timer = 0f;
         Color initialColor = ghostSR.color;
-
         while (timer < ghostFadeTime)
         {
             timer += Time.deltaTime;
-            float alpha = Mathf.Lerp(initialColor.a, 0f, timer / ghostFadeTime);
-            ghostSR.color = new Color(initialColor.r, initialColor.g, initialColor.b, alpha);
+            ghostSR.color = new Color(initialColor.r, initialColor.g, initialColor.b, Mathf.Lerp(initialColor.a, 0f, timer / ghostFadeTime));
             yield return null;
         }
-
         Destroy(ghostObj);
-    }
-
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (_isDead || _isInvincible || _isDashing) return;
-
-        if (collision.gameObject.CompareTag("Enemy") && !_isKnockedBack)
-        {
-            Vector2 knockbackDir = (transform.position - collision.transform.position).normalized;
-            TakeDamage(1, knockbackDir);
-        }
     }
 
     public void TakeDamage(int damage, Vector2 knockbackDir)
     {
         if (_isDead || _isInvincible || _isDashing) return;
 
+        if (IsParrying)
+        {
+            Debug.Log("<color=green>[Parry Success!] 완벽한 패링 성공! 대미지 0</color>");
+
+            if (BattleStatsManager.Instance != null)
+            {
+                BattleStatsManager.Instance.AddParryCount();
+            }
+
+            if (parryTextUI != null)
+            {
+                if (_parryTextCoroutine != null) StopCoroutine(_parryTextCoroutine);
+                float remainDuration = Mathf.Max(0.1f, _parryTimer);
+                _parryTextCoroutine = StartCoroutine(ShowParryTextRoutine(remainDuration));
+            }
+
+            return;
+        }
+
         _currentHealth -= damage;
-        Debug.Log($"플레이어 피격! 남은 체력: {_currentHealth}");
+        Debug.Log($"<color=red>[Player] 피격! 남은 체력: {_currentHealth}</color>");
 
         if (playerUI != null)
         {
             playerUI.UpdateHPBar(_currentHealth, maxHealth);
         }
 
-        if (_currentHealth <= 0) Die();
-        else StartCoroutine(HitRoutine(knockbackDir));
+        if (_isAttacking)
+        {
+            if (_attackCoroutine != null) StopCoroutine(_attackCoroutine);
+            if (attackArea != null) attackArea.SetActive(false);
+            _isAttacking = false;
+            _comboStep = 0;
+            _bufferedAttack2 = false;
+        }
+
+        if (_currentHealth <= 0)
+        {
+            Die();
+        }
+        else
+        {
+            StartCoroutine(HitRoutine(knockbackDir));
+        }
     }
 
     private IEnumerator HitRoutine(Vector2 knockbackDir)
     {
         _isKnockedBack = true;
 
-        if (_animator != null) _animator.SetTrigger("Hurt");
+        if (_animator != null)
+        {
+            _animator.Play("Hero_TakeHit", 0, 0f);
+        }
 
         _rb.linearVelocity = Vector2.zero;
-        _rb.AddForce(new Vector2(knockbackDir.x * knockbackForce, knockbackForce * 0.5f), ForceMode2D.Impulse);
+        _rb.AddForce(new Vector2(knockbackDir.x * knockbackForce, knockbackForce * 0.4f), ForceMode2D.Impulse);
 
-        if (_spriteRenderer != null) _spriteRenderer.color = hitColor;
+        if (_spriteRenderer != null)
+        {
+            _spriteRenderer.color = hitColor;
+        }
 
         yield return new WaitForSeconds(flashDuration);
 
-        if (_spriteRenderer != null) _spriteRenderer.color = _originalColor;
+        if (!_isDead && _spriteRenderer != null)
+        {
+            _spriteRenderer.color = _originalColor;
+        }
 
-        yield return new WaitForSeconds(0.2f);
+        float remainStun = Mathf.Max(0f, hitStunDuration - flashDuration);
+        yield return new WaitForSeconds(remainStun);
+
         _isKnockedBack = false;
+
+        if (!_isDead && _animator != null && !_isAttacking && !_isDashing && !IsParrying)
+        {
+            if (_isGrounded)
+            {
+                _animator.Play(Mathf.Abs(_horizontalInput) > 0.01f ? "Hero_Run" : "Hero_Idle", 0, 0f);
+            }
+        }
     }
 
     private void Die()
     {
         _isDead = true;
+
         _rb.linearVelocity = Vector2.zero;
+        _horizontalInput = 0f;
 
         if (playerUI != null)
         {
             playerUI.UpdateHPBar(0, maxHealth);
         }
 
-        if (_animator != null) _animator.SetTrigger("Die");
-        Debug.Log("플레이어 사망!");
+        StartCoroutine(DeathFlashRoutine());
+
+        if (_animator != null)
+        {
+            _animator.Play("Hero_Death", 0, 0f);
+        }
+
+        Debug.Log("<color=red>[Player] 플레이어 사망!</color>");
+
+        if (GameOverManager.Instance != null)
+        {
+            GameOverManager.Instance.TriggerGameOver();
+        }
+    }
+
+    private IEnumerator DeathFlashRoutine()
+    {
+        if (_spriteRenderer != null)
+        {
+            _spriteRenderer.color = hitColor;
+        }
+
+        yield return new WaitForSeconds(flashDuration);
+
+        if (_spriteRenderer != null)
+        {
+            _spriteRenderer.color = _originalColor;
+        }
+    }
+
+    private IEnumerator ShowParryTextRoutine(float duration)
+    {
+        if (parryTextUI != null)
+        {
+            // 플레이어가 좌측/우측 어느 방향을 보든 텍스트의 X 스케일은 정방향 유지
+            Vector3 currentScale = parryTextUI.transform.localScale;
+            float parentDirection = transform.localScale.x >= 0 ? 1f : -1f;
+            parryTextUI.transform.localScale = new Vector3(Mathf.Abs(currentScale.x) * parentDirection, currentScale.y, currentScale.z);
+
+            parryTextUI.SetActive(true);
+            yield return new WaitForSeconds(duration);
+            parryTextUI.SetActive(false);
+        }
+    }
+
+    public void ApplySingleBuff(StatType statType, float delta)
+    {
+        switch (statType)
+        {
+            case StatType.Attack:
+                baseAttackDamage = Mathf.Max(1, baseAttackDamage + (int)delta);
+                savedAttack = baseAttackDamage;
+                Debug.Log($"<color=cyan>[버프 적용] 실제 공격력: {baseAttackDamage}</color>");
+                break;
+
+            case StatType.Health:
+                maxHealth = Mathf.Max(1, maxHealth + (int)delta);
+                savedMaxHp = maxHealth;
+                _currentHealth = Mathf.Max(1, Mathf.Min(_currentHealth + (int)delta, maxHealth));
+                if (playerUI != null)
+                {
+                    playerUI.UpdateHPBar(_currentHealth, maxHealth);
+                }
+                Debug.Log($"<color=cyan>[버프 적용] 실제 최대 체력: {maxHealth} / 현재 체력: {_currentHealth}</color>");
+                break;
+
+            case StatType.Speed:
+                moveSpeed = Mathf.Max(1f, moveSpeed + delta);
+                savedSpeed = moveSpeed;
+                Debug.Log($"<color=cyan>[버프 적용] 실제 이동 속도: {moveSpeed:F1}</color>");
+                break;
+
+            case StatType.JumpPower:
+                jumpForce = Mathf.Max(1f, jumpForce + delta);
+                savedJump = jumpForce;
+                Debug.Log($"<color=cyan>[버프 적용] 실제 점프력: {jumpForce:F1}</color>");
+                break;
+        }
     }
 }
