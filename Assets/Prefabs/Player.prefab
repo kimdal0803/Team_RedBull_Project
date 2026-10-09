@@ -238,7 +238,49 @@ MonoBehaviour:
   comboEndCooldown: 0.18
   step2DashForce: 4.5
   baseAttackDamage: 1
+  qCooldown: 6
+  qDamageMultiplier: 1.8
+  qWindup: 0.2
+  qTotalDuration: 0.7
+  qDashDistance: 3
+  qAttackSize: {x: 3, y: 1.5}
+  qAttackOffset: {x: 1.5, y: 0}
+  qEnemyLayer:
+    serializedVersion: 2
+    m_Bits: 128
+  qVfxPrefab: {fileID: 0}
+  qAnimationStateName: 
+  qDebugColor: {r: 1, g: 0.2, b: 0.2, a: 0.35}
+  qDebugDuration: 0.2
+  wCooldown: 10
+  wDamageMultiplier: 1.2
+  wRadius: 2.5
+  wWindup: 0.35
+  wTotalDuration: 0.9
+  wVfxPrefab: {fileID: 0}
+  wAnimationStateName: 
+  wDebugColor: {r: 1, g: 0.6, b: 0.1, a: 0.35}
+  wDebugDuration: 0.25
+  wCircleSegments: 48
+  eCooldown: 15
+  eDamageMultiplier: 3
+  eChargeTime: 0.7
+  eTotalDuration: 1.3
+  eAttackSize: {x: 2.5, y: 1.8}
+  eAttackOffset: {x: 1.25, y: 0}
+  eVfxPrefab: {fileID: 0}
+  eAnimationStateName: 
+  eDebugColor: {r: 0.7, g: 0.1, b: 1, a: 0.35}
+  eChargeDebugColor: {r: 0.7, g: 0.1, b: 1, a: 0.15}
+  eDebugDuration: 0.25
+  potionKey: 103
+  maxPotionCount: 1
+  potionHealAmount: 1
+  potionUseDuration: 0.9
+  potionVfxPrefab: {fileID: 0}
+  potionAnimationStateName: 
   parryWindow: 0.25
+  parryCooldown: 0.8
   parryColor: {r: 0, g: 1, b: 1, a: 1}
   parryTextUI: {fileID: 5703590682163763047}
   maxHealth: 5
