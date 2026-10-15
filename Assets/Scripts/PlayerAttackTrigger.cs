@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReversalTower.Boss;   // FSM 보스(BossController)를 때리기 위해 추가
 using UnityEngine;
 
 public class PlayerAttackTrigger : MonoBehaviour
@@ -55,6 +56,17 @@ public class PlayerAttackTrigger : MonoBehaviour
         {
             _hitList.Add(other);
             boss.TakeDamage(dmg);
+            return;
+        }
+
+        // 1-2. FSM 보스(아라쿠스 등) 타격
+        //      콜라이더가 자식 오브젝트에 있을 수 있어 부모까지 거슬러 찾는다.
+        //      TakeDamage의 두 번째 인자는 '원인'으로, 전투 기록의 skill 칸에 남는다.
+        BossController fsmBoss = other.GetComponentInParent<BossController>();
+        if (fsmBoss != null)
+        {
+            _hitList.Add(other);
+            fsmBoss.TakeDamage(dmg, "플레이어 공격");
             return;
         }
 
