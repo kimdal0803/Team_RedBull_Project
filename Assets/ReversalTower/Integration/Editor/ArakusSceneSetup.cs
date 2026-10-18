@@ -118,7 +118,7 @@ namespace ReversalTower.Integration.EditorTools
             ArakusSamplePatterns.CreateAll();
             ApplyAnimTriggers();
 
-            // 3. 플레이어를 먼저 찾아 둔다 (보스를 바닥에 맞출 기준이 된다)
+            // 3. 플레이어를 먼저 찾아 둔다 (다리 연결·정렬 레이어에 쓴다)
             var player = Object.FindAnyObjectByType<PlayerMovement>(FindObjectsInactive.Include);
 
             // 4. 기존 더미 보스 끄기 (지우지 않는다)
@@ -143,9 +143,11 @@ namespace ReversalTower.Integration.EditorTools
                 Debug.LogWarning("[씬 세팅] DummyBoss를 찾지 못해 보스를 원점에 세웁니다. 위치를 직접 옮겨 주세요.");
             }
 
-            // 플레이어가 서 있는 바닥 높이가 가장 믿을 만한 기준이다
-            if (player != null)
-                bossPosition.y = BottomOf(player.gameObject, bossPosition.y);
+            // 더미가 없으면 그 자리에서 아래로 쏘아 바닥을 찾는다.
+            // 플레이어가 선 바닥을 기준으로 삼으면 안 된다 — 맵이 여러 층이면
+            // 언덕 위에 있어야 할 보스가 1층으로 내려와 버린다.
+            if (!foundDummy)
+                bossPosition.y = GroundBelow(bossPosition, bossPosition.y);
 
             // 5. 아라쿠스 본체
             var bossGo = GameObject.Find(BossObjectName);
@@ -155,11 +157,13 @@ namespace ReversalTower.Integration.EditorTools
                 bossGo = new GameObject(BossObjectName);
                 Undo.RegisterCreatedObjectUndo(bossGo, "아라쿠스 만들기");
             }
-            // 이미 있던 보스는 X는 건드리지 않고(직접 옮겼을 수 있다) 바닥 높이만 맞춘다
+            // 더미가 있으면 그 자리가 기획된 보스 자리다 — X·Y 모두 그 자리로 되돌린다.
+            // (직접 옮겨 두었다면 이 메뉴를 다시 누를 때 원래 자리로 돌아간다)
             Undo.RecordObject(bossGo.transform, "아라쿠스 위치");
-            bossGo.transform.position = bossIsNew
-                ? bossPosition
-                : new Vector3(bossGo.transform.position.x, bossPosition.y, bossGo.transform.position.z);
+            if (foundDummy || bossIsNew)
+                bossGo.transform.position = bossPosition;
+            Debug.Log($"[씬 세팅] 아라쿠스 위치 {bossGo.transform.position} " +
+                      $"({(foundDummy ? "DummyBoss가 있던 자리의 발밑" : "아래로 찾은 바닥")})");
 
             var boss = GetOrAdd<BossController>(bossGo);
             boss.bossId = "Arakus";
@@ -491,6 +495,24 @@ namespace ReversalTower.Integration.EditorTools
             var sr = go.GetComponentInChildren<SpriteRenderer>();
             if (sr != null && sr.sprite != null && sr.bounds.size.y > 0.01f) return sr.bounds.min.y;
 
+            return fallback;
+        }
+
+        /// <summary>
+        /// 그 자리에서 아래로 쏘아 가장 가까운 바닥의 윗면 Y를 찾는다.
+        /// 맵이 여러 층이어도 '그 위치의 바닥'을 찾으므로 언덕 위 보스도 맞게 선다.
+        /// 더미 보스가 없을 때만 쓰는 보조 수단이다.
+        /// </summary>
+        static float GroundBelow(Vector3 from, float fallback)
+        {
+            var hits = Physics2D.RaycastAll(new Vector2(from.x, from.y + 3f), Vector2.down, 12f);
+            foreach (var h in hits)
+            {
+                if (h.collider == null || h.collider.isTrigger) continue;
+                if (h.collider.GetComponentInParent<PlayerMovement>() != null) continue;
+                if (h.collider.GetComponentInParent<BossController>() != null) continue;
+                return h.point.y;
+            }
             return fallback;
         }
     }
