@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f6ad75965d953343923610aaf81197a, type: 3}
+  m_Name: Arakus_QuickStep
+  m_EditorClassIdentifier: Assembly-CSharp::ReversalTower.Boss.BossPatternData
+  patternId: Arakus_QuickStep
+  displayName: "\uD035\uC2A4\uD15D"
+  kind: 1
+  designNote: "\uADFC\uAC70: \uC544\uB77C\uCFE0\uC2A4 \uAE30\uD68D\uC11C 4.2 \u2014 \uCD1D 0.75s, \uD50C\uB808\uC774\uC5B4\uAC00 \uC548 \uBCF4\uC774\uBA74 \uB3CC\uC544\uC11C\uBA70 0.75m \uBB3C\uB7EC\uB0A8.\n\uC784\uC2DC: '\uC548 \uBCF4\uC784' = \uB4F1 \uB4A4 1.5\uCD08(BossController.behindConditionTime), \uC120\uB51C 0.1s, \uCFE8\uD0C0\uC784 3\uCD08."
+  minPhase: 1
+  maxPhase: 99
+  minDistance: 0
+  maxDistance: 99
+  cooldown: 3
+  weight: 1
+  priority: 10
+  conditionKey: TargetBehind
+  faceTargetOnStart: 1
+  telegraphTime: 0.1
+  attackDuration: 0
+  recoveryTime: 0.35
+  hits: []
+  fullParryGroggyTime: 0
+  damageTakenMultiplier: 1
+  dash:
+    startTime: 0
+    distance: 0.75
+    duration: 0.3
+    backward: 1
+    stopAtWall: 1
+    groggyObjectMask:
+      serializedVersion: 2
+      m_Bits: 0
+    groggyTime: 0
+  projectile:
+    spawnTime: 0
+    spawnHeight: 1.2
+    spawnForward: 0.3
+    speed: 12
+    maxDistance: 7
+    returns: 1
+    returnSpeed: 0
+    catchDistance: 0.6
+    despawnOnHit: 0
+    visualSize: {x: 0.8, y: 0.8}
+    visualColor: {r: 0.85, g: 0.8, b: 0.5, a: 1}
+    sprite: {fileID: 0}
+    spinSpeed: 720
+    maxLifetime: 6
+  telegraphAnimTrigger: 
+  attackAnimTrigger: BackStep
+  fxKey: Arakus_Dirt_FX
+  sfxKey: SFX_Arakus_Quickstep

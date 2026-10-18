@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f6ad75965d953343923610aaf81197a, type: 3}
+  m_Name: Arakus_Charge
+  m_EditorClassIdentifier: Assembly-CSharp::ReversalTower.Boss.BossPatternData
+  patternId: Arakus_Charge
+  displayName: "\uB3CC\uC9C4 (2\uD398\uC774\uC988 \uAE30\uBBF9)"
+  kind: 1
+  designNote: "\uADFC\uAC70: \uC544\uB77C\uCFE0\uC2A4 \uAE30\uD68D\uC11C 4.3 \u2014 Hit 1.1s / \uCD1D 1.5s, \uB9F5 \uB05D\uAE4C\uC9C0, \uC624\uBE0C\uC81D\uD2B8\uC5D0 \uB9C9\uD788\uBA74 \uADF8\uB85C\uAE30.\n\uD655\uC778 \uD544\uC694: \uD0C0\uC784\uB77C\uC778\uB300\uB85C\uBA74 0.4\uCD08\uC5D0 20m\uB97C \uB2EC\uB9AC\uB294 \uB9E4\uC6B0 \uBE60\uB978 \uB3CC\uC9C4\uC774 \uB428.\n\uC784\uC2DC: \uACC4\uC218 150%, \uADF8\uB85C\uAE30 3\uCD08. dash.groggyObjectMask\uC5D0 \uC800\uC9C0 \uC624\uBE0C\uC81D\uD2B8 \uB808\uC774\uC5B4\uB97C \uC9C0\uC815\uD574\uC57C \uADF8\uB85C\uAE30\uAC00 \uAC78\uB9B0\uB2E4.\n\uBA54\uB274 '\uB3CC\uC9C4 \uAE30\uBBF9 \uAE30\uB465 \uB9CC\uB4E4\uAE30'\uB97C \uC4F0\uBA74 \uB808\uC774\uC5B4 \uC9C0\uC815\uAE4C\uC9C0 \uC790\uB3D9\uC73C\uB85C \uB41C\uB2E4."
+  minPhase: 2
+  maxPhase: 99
+  minDistance: 0
+  maxDistance: 99
+  cooldown: 0
+  weight: 0
+  priority: 0
+  conditionKey: 
+  faceTargetOnStart: 1
+  telegraphTime: 1.1
+  attackDuration: 0
+  recoveryTime: 0
+  hits:
+  - time: 0
+    activeTime: 0.4
+    repeatCount: 1
+    repeatInterval: 0.25
+    box:
+      anchor: 0
+      forwardStart: 0
+      width: 1.2
+      bottom: 0
+      height: 2.2
+    damageCoefficient: 1.5
+    knockback: 3
+    parryable: 0
+    parryStaggerTime: 0.6
+    parryInterruptsPattern: 1
+    ignoresDodge: 0
+    carrier: 0
+  fullParryGroggyTime: 0
+  damageTakenMultiplier: 1
+  dash:
+    startTime: 0
+    distance: 20
+    duration: 0.4
+    backward: 0
+    stopAtWall: 1
+    groggyObjectMask:
+      serializedVersion: 2
+      m_Bits: 2048
+    groggyTime: 3
+  projectile:
+    spawnTime: 0
+    spawnHeight: 1.2
+    spawnForward: 0.3
+    speed: 12
+    maxDistance: 7
+    returns: 1
+    returnSpeed: 0
+    catchDistance: 0.6
+    despawnOnHit: 0
+    visualSize: {x: 0.8, y: 0.8}
+    visualColor: {r: 0.85, g: 0.8, b: 0.5, a: 1}
+    sprite: {fileID: 0}
+    spinSpeed: 720
+    maxLifetime: 6
+  telegraphAnimTrigger: 
+  attackAnimTrigger: Attack
+  fxKey: Arakus_Charge_FX
+  sfxKey: SFX_Arakus_Charge_Dash

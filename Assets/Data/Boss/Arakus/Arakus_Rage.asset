@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f6ad75965d953343923610aaf81197a, type: 3}
+  m_Name: Arakus_Rage
+  m_EditorClassIdentifier: Assembly-CSharp::ReversalTower.Boss.BossPatternData
+  patternId: Arakus_Rage
+  displayName: "\uC544\uB77C\uCFE0\uC2A4\uC758 \uBD84\uB178 (30% \uBC84\uD504)"
+  kind: 0
+  designNote: "\uADFC\uAC70: \uC544\uB77C\uCFE0\uC2A4 \uAE30\uD68D\uC11C 4.3 \u2014 Buff 2.5s / \uCD1D 5s, \uC2DC\uC804 \uC911 \uBC1B\uB294 \uD53C\uD574 \uAC10\uC18C, \uC774\uD6C4 \uBAA8\uB4E0 \uC18D\uB3C4 1.5\uBC30.\n\uC784\uC2DC: \uBC1B\uB294 \uD53C\uD574 50%. \uC18D\uB3C4 1.5\uBC30\uB294 PhaseTrigger\uC5D0\uC11C \uC801\uC6A9\uB418\uBBC0\uB85C \uC774 \uC5F0\uCD9C\uB3C4 1.5\uBC30 \uBE60\uB974\uAC8C \uC7AC\uC0DD\uB428."
+  minPhase: 1
+  maxPhase: 99
+  minDistance: 0
+  maxDistance: 99
+  cooldown: 0
+  weight: 0
+  priority: 0
+  conditionKey: 
+  faceTargetOnStart: 1
+  telegraphTime: 2.5
+  attackDuration: 0
+  recoveryTime: 2.5
+  hits: []
+  fullParryGroggyTime: 0
+  damageTakenMultiplier: 0.5
+  dash:
+    startTime: 0
+    distance: 5
+    duration: 1
+    backward: 0
+    stopAtWall: 1
+    groggyObjectMask:
+      serializedVersion: 2
+      m_Bits: 0
+    groggyTime: 0
+  projectile:
+    spawnTime: 0
+    spawnHeight: 1.2
+    spawnForward: 0.3
+    speed: 12
+    maxDistance: 7
+    returns: 1
+    returnSpeed: 0
+    catchDistance: 0.6
+    despawnOnHit: 0
+    visualSize: {x: 0.8, y: 0.8}
+    visualColor: {r: 0.85, g: 0.8, b: 0.5, a: 1}
+    sprite: {fileID: 0}
+    spinSpeed: 720
+    maxLifetime: 6
+  telegraphAnimTrigger: 
+  attackAnimTrigger: BeamAttack
+  fxKey: Arakus_Of_Wrath_FX
+  sfxKey: SFX_Arakus_Rage_Charge

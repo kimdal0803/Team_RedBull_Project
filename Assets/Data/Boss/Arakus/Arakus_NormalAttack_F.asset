@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f6ad75965d953343923610aaf81197a, type: 3}
+  m_Name: Arakus_NormalAttack_F
+  m_EditorClassIdentifier: Assembly-CSharp::ReversalTower.Boss.BossPatternData
+  patternId: Arakus_NormalAttack_F
+  displayName: "\uC77C\uBC18 \uACF5\uACA9 3 (\uBC1C\uCC28\uAE30)"
+  kind: 0
+  designNote: "\uADFC\uAC70: \uC544\uB77C\uCFE0\uC2A4 \uAE30\uD68D\uC11C 4.1 \u2014 Hit 0.8s / \uCD1D 1.2s, \uBC94\uC704 0.5m.\n\uC784\uC2DC: \uACC4\uC218 70%, \uD310\uC815 \uB192\uC774 1.2m. \uC801\uC911 \uC2DC \uCD94\uAC00 \uC5F0\uACC4 \uACF5\uACA9\uC740 \uAE30\uD68D\uC11C\uC5D0 \uB0B4\uC6A9\uC774 \uC5C6\uC5B4 \uB123\uC9C0 \uC54A\uC74C."
+  minPhase: 1
+  maxPhase: 99
+  minDistance: 0
+  maxDistance: 0.5
+  cooldown: 0
+  weight: 2
+  priority: 0
+  conditionKey: 
+  faceTargetOnStart: 1
+  telegraphTime: 0.8
+  attackDuration: 0
+  recoveryTime: 0.4
+  hits:
+  - time: 0
+    activeTime: 0
+    repeatCount: 1
+    repeatInterval: 0.25
+    box:
+      anchor: 0
+      forwardStart: 0
+      width: 0.5
+      bottom: 0
+      height: 1.2
+    damageCoefficient: 0.7
+    knockback: 1
+    parryable: 0
+    parryStaggerTime: 0.6
+    parryInterruptsPattern: 1
+    ignoresDodge: 0
+    carrier: 0
+  fullParryGroggyTime: 0
+  damageTakenMultiplier: 1
+  dash:
+    startTime: 0
+    distance: 5
+    duration: 1
+    backward: 0
+    stopAtWall: 1
+    groggyObjectMask:
+      serializedVersion: 2
+      m_Bits: 0
+    groggyTime: 0
+  projectile:
+    spawnTime: 0
+    spawnHeight: 1.2
+    spawnForward: 0.3
+    speed: 12
+    maxDistance: 7
+    returns: 1
+    returnSpeed: 0
+    catchDistance: 0.6
+    despawnOnHit: 0
+    visualSize: {x: 0.8, y: 0.8}
+    visualColor: {r: 0.85, g: 0.8, b: 0.5, a: 1}
+    sprite: {fileID: 0}
+    spinSpeed: 720
+    maxLifetime: 6
+  telegraphAnimTrigger: 
+  attackAnimTrigger: Attack
+  fxKey: 
+  sfxKey: SFX_Arakus_Kick

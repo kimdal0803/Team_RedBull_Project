@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f6ad75965d953343923610aaf81197a, type: 3}
+  m_Name: Arakus_SwordSwinging
+  m_EditorClassIdentifier: Assembly-CSharp::ReversalTower.Boss.BossPatternData
+  patternId: Arakus_SwordSwinging
+  displayName: "\uAC70\uAC80 \uD718\uB450\uB974\uAE30"
+  kind: 0
+  designNote: "\uADFC\uAC70: \uC544\uB77C\uCFE0\uC2A4 \uAE30\uD68D\uC11C 4.2 \u2014 Hit 0.85s / \uCD1D 1.6s, \uBCF4\uC2A4 \uC804\uBC29 2m, \uD53C\uACA9 \uC2DC 1m \uB0A0\uC544\uAC10(\uB109\uBC31 \uC911), \uD328\uB9C1\uC73C\uB85C \uC0C1\uC1C4 \uAC00\uB2A5.\n\uC784\uC2DC: \uACC4\uC218 150%, \uD310\uC815 \uB192\uC774 2m, \uD328\uB9C1 \uACBD\uC9C1 1\uCD08, \uCFE8\uD0C0\uC784 6\uCD08."
+  minPhase: 1
+  maxPhase: 99
+  minDistance: 0
+  maxDistance: 2
+  cooldown: 6
+  weight: 1.5
+  priority: 0
+  conditionKey: 
+  faceTargetOnStart: 1
+  telegraphTime: 0.85
+  attackDuration: 0
+  recoveryTime: 0.75
+  hits:
+  - time: 0
+    activeTime: 0
+    repeatCount: 1
+    repeatInterval: 0.25
+    box:
+      anchor: 0
+      forwardStart: 0
+      width: 2
+      bottom: 0
+      height: 2
+    damageCoefficient: 1.5
+    knockback: 2
+    parryable: 1
+    parryStaggerTime: 1
+    parryInterruptsPattern: 1
+    ignoresDodge: 0
+    carrier: 0
+  fullParryGroggyTime: 0
+  damageTakenMultiplier: 1
+  dash:
+    startTime: 0
+    distance: 5
+    duration: 1
+    backward: 0
+    stopAtWall: 1
+    groggyObjectMask:
+      serializedVersion: 2
+      m_Bits: 0
+    groggyTime: 0
+  projectile:
+    spawnTime: 0
+    spawnHeight: 1.2
+    spawnForward: 0.3
+    speed: 12
+    maxDistance: 7
+    returns: 1
+    returnSpeed: 0
+    catchDistance: 0.6
+    despawnOnHit: 0
+    visualSize: {x: 0.8, y: 0.8}
+    visualColor: {r: 0.85, g: 0.8, b: 0.5, a: 1}
+    sprite: {fileID: 0}
+    spinSpeed: 720
+    maxLifetime: 6
+  telegraphAnimTrigger: 
+  attackAnimTrigger: Attack
+  fxKey: Arakus_SwordSwinging_FX
+  sfxKey: SFX_Arakus_GreatSword_Swing
