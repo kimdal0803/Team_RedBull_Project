@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ReversalTower.Boss;
 using ReversalTower.Boss.EditorTools;
 using ReversalTower.Combat;
@@ -26,7 +27,9 @@ namespace ReversalTower.Integration.EditorTools
     {
         const string SourceScene = "Assets/Scenes/BossTestScene.unity";
         const string DuplicateScene = "Assets/Scenes/ArakusTestScene.unity";
-        const string DarkKnightPrefab = "Assets/MyAssets/Dark Knight/Prefabs/Dark Knight.prefab";
+        // 보스 그림: Scale3x로 해상도를 올린 Royal Knight (검 + 방패 — 아라쿠스 설정과 맞다)
+        const string KnightIdleSheet = "Assets/MyAssets/RoyalKnight_x3/Combat_Ready_Idle.png";
+        const string EffectPrefabFolder = "Assets/Data/Effects";
 
         const string BossObjectName = "Arakus";
         const string CollectorObjectName = "CombatDataCollector";
@@ -37,20 +40,24 @@ namespace ReversalTower.Integration.EditorTools
         const float BossAttackPower = 20f;
         const int RewardHp = 50;
 
-        /// <summary>패턴 ID → 애니메이터 트리거 (Dark Knight의 Knight Pivot 컨트롤러 기준)</summary>
+        /// <summary>
+        /// 패턴 ID → 애니메이터 트리거 (ArtImportSetup이 만드는 Arakus.controller 기준).
+        /// 패턴마다 다른 모션이 나오도록 일부러 흩어 놓았다 — 11개가 똑같아 보이면
+        /// 플레이어가 패턴을 구분하지 못하고 DDA 데이터도 의미가 없어진다.
+        /// </summary>
         static readonly Dictionary<string, string> AttackTriggers = new Dictionary<string, string>
         {
-            { "Arakus_NormalAttack_R", "Attack" },
-            { "Arakus_NormalAttack_L", "Attack" },
-            { "Arakus_NormalAttack_F", "Attack" },
-            { "Arakus_SwordSwinging",  "Attack" },
-            { "Arakus_SweepingStrike", "Attack" },
-            { "Arakus_ShieldDash",     "Attack" },
-            { "Arakus_Charge",         "Attack" },
-            { "Arakus_ShieldThrowDash", "BeamAttack" },
+            { "Arakus_NormalAttack_R",  "Attack" },        // 공격 1
+            { "Arakus_NormalAttack_L",  "Attack2" },       // 공격 2
+            { "Arakus_NormalAttack_F",  "Attack3" },       // 공격 3
+            { "Arakus_SwordSwinging",   "Attack2" },       // 거검 — 큰 동작
+            { "Arakus_SweepingStrike",  "Attack3" },       // 일대 휩쓸기
+            { "Arakus_ShieldDash",      "ShieldCharge" },  // 방패 들고 전진
+            { "Arakus_Charge",          "ShieldCharge" },  // 돌진 기믹
+            { "Arakus_ShieldThrowDash", "BeamAttack" },    // 방패 투척 — 검 치켜들기
             { "Arakus_ShieldThrowSlam", "BeamAttack" },
-            { "Arakus_Rage",            "BeamAttack" },
-            { "Arakus_QuickStep",       "BackStep" },
+            { "Arakus_Rage",            "Channel" },       // 분노 — 기 모으기
+            { "Arakus_QuickStep",       "BackStep" },      // 구르기
         };
 
         // ─────────────────────────── 메뉴 ───────────────────────────
@@ -187,6 +194,12 @@ namespace ReversalTower.Integration.EditorTools
                                  "'Player Boss Hit Adapter'와 'Player Combat Event Relay'를 직접 붙여 주세요.");
             }
 
+            // 7-2. 보스가 배경에 가려지지 않게 정렬 레이어 맞추기
+            FixSorting(boss, player);
+
+            // 7-3. 패턴별 이펙트 연결
+            int fxCount = AssignEffects(boss);
+
             // 8. 수집기
             var collectorGo = GameObject.Find(CollectorObjectName);
             if (collectorGo == null)
@@ -226,6 +239,7 @@ namespace ReversalTower.Integration.EditorTools
                 $"패턴        {boss.patterns.Count}개 + 페이즈 전환 {(boss.phaseTriggers != null ? boss.phaseTriggers.Length : 0)}개\n" +
                 $"기존 더미   {(foundDummy ? "껐습니다 (지우지 않음)" : "찾지 못함")}\n" +
                 $"플레이어    {(player != null ? "어댑터·릴레이 연결됨" : "직접 붙여야 함")}\n" +
+                $"이펙트      패턴 {fxCount}개에 연결됨\n" +
                 $"패턴 표시   공격 범위가 게임 화면에 색으로 보입니다\n\n" +
                 "Play를 누르고 Game 창을 클릭한 뒤 보스에게 다가가 보세요.";
 
@@ -238,44 +252,75 @@ namespace ReversalTower.Integration.EditorTools
 
         // ─────────────────────── 그림 붙이기 ───────────────────────
 
-        /// <summary>Dark Knight 프리팹을 보스의 그림으로 붙인다. 이미 있으면 다시 연결만 한다.</summary>
+        /// <summary>
+        /// 보스의 그림을 만든다. SpriteRenderer + Animator 하나짜리 단순 구조라
+        /// ArtImportSetup이 만든 애니메이션 클립이 그대로 붙는다.
+        /// 이미 있으면 다시 연결만 한다.
+        /// </summary>
         static bool AttachVisual(BossController boss)
         {
-            var existing = boss.transform.Find(VisualObjectName);
-            if (existing != null)
-            {
-                WireVisual(boss, existing.gameObject);
-                return true;
-            }
+            var idle = AssetDatabase.LoadAllAssetsAtPath(KnightIdleSheet).OfType<Sprite>().FirstOrDefault();
+            var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ArtImportSetup.ControllerPath);
 
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DarkKnightPrefab);
-            if (prefab == null)
+            if (idle == null)
             {
-                Debug.LogWarning($"[씬 세팅] 보스 그림을 찾지 못했습니다: {DarkKnightPrefab}\n" +
-                                 "보스가 보이지 않습니다. 원하는 스프라이트를 보스 자식으로 넣고 " +
-                                 "BossController의 Visual Root에 연결해 주세요.");
+                Debug.LogWarning($"[씬 세팅] 보스 스프라이트를 찾지 못했습니다: {KnightIdleSheet}\n" +
+                                 "먼저 메뉴 '역전의 탑 ▸ 아트 ▸ ★ 스프라이트 슬라이스 · 애니메이션 만들기'를 실행하세요.");
                 return false;
             }
 
-            var inst = (GameObject)PrefabUtility.InstantiatePrefab(prefab, boss.transform);
-            PrefabUtility.UnpackPrefabInstance(inst, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
-            inst.name = VisualObjectName;
+            var existingT = boss.transform.Find(VisualObjectName);
+            GameObject inst;
+            if (existingT != null)
+            {
+                inst = existingT.gameObject;
+            }
+            else
+            {
+                inst = new GameObject(VisualObjectName);
+                inst.transform.SetParent(boss.transform, false);
+                Undo.RegisterCreatedObjectUndo(inst, "보스 그림 붙이기");
+            }
+
             inst.transform.localPosition = Vector3.zero;
             inst.transform.localRotation = Quaternion.identity;
             inst.transform.localScale = Vector3.one;
 
-            // 그림만 남기고 원본 에셋의 AI·물리는 떼어낸다 (순서 중요: 스크립트 → 콜라이더 → 리지드바디)
-            foreach (var mb in inst.GetComponentsInChildren<MonoBehaviour>(true))
-                if (mb != null) Object.DestroyImmediate(mb, true);
-            foreach (var c in inst.GetComponentsInChildren<Collider2D>(true))
-                if (c != null) Object.DestroyImmediate(c, true);
-            foreach (var rb in inst.GetComponentsInChildren<Rigidbody2D>(true))
-                if (rb != null) Object.DestroyImmediate(rb, true);
+            var sr = inst.GetComponent<SpriteRenderer>();
+            if (sr == null) sr = inst.AddComponent<SpriteRenderer>();
+            sr.sprite = idle;
+
+            var anim = inst.GetComponent<Animator>();
+            if (anim == null) anim = inst.AddComponent<Animator>();
+            anim.runtimeAnimatorController = controller;
+            anim.applyRootMotion = false;
+            if (controller == null)
+                Debug.LogWarning("[씬 세팅] Arakus.controller가 없어 애니메이션은 비워 둡니다. " +
+                                 "'아트 ▸ 스프라이트 슬라이스' 메뉴를 먼저 실행하세요.");
 
             FitToBossSize(boss, inst);
             WireVisual(boss, inst);
-            Undo.RegisterCreatedObjectUndo(inst, "보스 그림 붙이기");
+            EditorUtility.SetDirty(inst);
             return true;
+        }
+
+        /// <summary>보스 그림이 배경에 가려지지 않도록 플레이어와 같은 정렬 레이어에 둔다.</summary>
+        static void FixSorting(BossController boss, PlayerMovement player)
+        {
+            var bossSr = boss.GetComponentInChildren<SpriteRenderer>();
+            if (bossSr == null) return;
+
+            var playerSr = player != null ? player.GetComponentInChildren<SpriteRenderer>() : null;
+            if (playerSr != null)
+            {
+                bossSr.sortingLayerID = playerSr.sortingLayerID;
+                bossSr.sortingOrder = playerSr.sortingOrder - 1;   // 플레이어 바로 뒤
+            }
+            else
+            {
+                bossSr.sortingOrder = 10;
+            }
+            EditorUtility.SetDirty(bossSr);
         }
 
         /// <summary>보스 키(bodyHeight)에 맞춰 크기를 조정하고, 발밑이 보스 피벗에 오도록 맞춘다.</summary>
@@ -316,9 +361,71 @@ namespace ReversalTower.Integration.EditorTools
             binder.animator = animator;
         }
 
+        // ─────────────────────── 이펙트 연결 ───────────────────────
+
+        /// <summary>
+        /// Assets/Data/Effects의 프리팹을 패턴마다 하나씩 돌려가며 배정한다.
+        /// 어느 이펙트가 어느 패턴에 어울리는지는 코드가 알 수 없으니, 일단 전부 다르게 깔아 두고
+        /// 플레이해 보면서 Inspector에서 바꾸면 된다. 목적은 '패턴이 서로 달라 보이게' 하는 것이다.
+        /// </summary>
+        static int AssignEffects(BossController boss)
+        {
+            var prefabs = AssetDatabase.FindAssets("t:Prefab", new[] { EffectPrefabFolder })
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .OrderBy(p => p)
+                .Select(AssetDatabase.LoadAssetAtPath<GameObject>)
+                .Where(p => p != null)
+                .ToList();
+
+            if (prefabs.Count == 0)
+            {
+                Debug.LogWarning("[씬 세팅] 이펙트 프리팹이 없습니다. " +
+                                 "'역전의 탑 ▸ 아트 ▸ ★ 스프라이트 슬라이스 · 애니메이션 만들기'를 먼저 실행하세요.");
+                return 0;
+            }
+
+            var player = GetOrAdd<BossEffectPlayer>(boss.gameObject);
+
+            // 일반 패턴 + 강제 패턴(페이즈 전환)을 모두 모은다
+            var all = new List<BossPatternData>(boss.patterns);
+            if (boss.phaseTriggers != null)
+                foreach (var t in boss.phaseTriggers)
+                    if (t?.forcedPatterns != null)
+                        foreach (var p in t.forcedPatterns)
+                            if (p != null && !all.Contains(p)) all.Add(p);
+
+            player.patternEffects.Clear();
+            int i = 0;
+            foreach (var p in all)
+            {
+                if (p == null || string.IsNullOrEmpty(p.patternId)) continue;
+                player.patternEffects.Add(new BossEffectPlayer.PatternEffect
+                {
+                    patternId = p.patternId,
+                    prefab = prefabs[i % prefabs.Count],
+                    // 판정 박스 한가운데쯤에 뜨도록 대충 맞춘다
+                    forward = Mathf.Max(0.4f, p.hits != null && p.hits.Length > 0 ? p.hits[0].box.width * 0.5f : 1f),
+                    height = 1.1f,
+                    scale = 1f,
+                });
+                i++;
+            }
+
+            // 타격·패링은 공통으로 쓴다 (목록의 뒤쪽에서 하나씩)
+            player.hitEffect = prefabs[prefabs.Count - 1];
+            player.parryEffect = prefabs[Mathf.Max(0, prefabs.Count - 2)];
+            player.commonScale = 0.7f;
+
+            EditorUtility.SetDirty(player);
+            return player.patternEffects.Count;
+        }
+
         // ─────────────────── 애니메이터 트리거 ───────────────────
 
-        /// <summary>패턴 에셋의 공격 트리거 칸만 채운다. 이미 적혀 있으면 건드리지 않는다.</summary>
+        /// <summary>
+        /// 패턴 에셋의 공격 트리거 칸을 채운다.
+        /// 보스 그림이 바뀌면 트리거 이름도 바뀌므로 기존 값을 덮어쓴다 (생성된 데이터라 안전하다).
+        /// </summary>
         static void ApplyAnimTriggers()
         {
             int changed = 0;
@@ -326,7 +433,7 @@ namespace ReversalTower.Integration.EditorTools
             {
                 string path = $"Assets/Data/Boss/Arakus/{kv.Key}.asset";
                 var p = AssetDatabase.LoadAssetAtPath<BossPatternData>(path);
-                if (p == null || !string.IsNullOrEmpty(p.attackAnimTrigger)) continue;
+                if (p == null || p.attackAnimTrigger == kv.Value) continue;
                 p.attackAnimTrigger = kv.Value;
                 EditorUtility.SetDirty(p);
                 changed++;
