@@ -118,13 +118,19 @@ namespace ReversalTower.Integration.EditorTools
             ArakusSamplePatterns.CreateAll();
             ApplyAnimTriggers();
 
-            // 3. 기존 더미 보스 끄기 (지우지 않는다)
+            // 3. 플레이어를 먼저 찾아 둔다 (보스를 바닥에 맞출 기준이 된다)
+            var player = Object.FindAnyObjectByType<PlayerMovement>(FindObjectsInactive.Include);
+
+            // 4. 기존 더미 보스 끄기 (지우지 않는다)
+            //    BossController의 피벗은 '발밑'인데 DummyBoss는 피벗이 몸 가운데라
+            //    위치를 그대로 쓰면 보스가 공중에 뜬다. 바닥 Y를 따로 구한다.
             Vector3 bossPosition = Vector3.zero;
             bool foundDummy = false;
             var dummy = Object.FindAnyObjectByType<DummyBoss>(FindObjectsInactive.Include);
             if (dummy != null)
             {
                 bossPosition = dummy.transform.position;
+                bossPosition.y = BottomOf(dummy.gameObject, bossPosition.y);
                 foundDummy = true;
                 if (dummy.gameObject.activeSelf)
                 {
@@ -137,14 +143,23 @@ namespace ReversalTower.Integration.EditorTools
                 Debug.LogWarning("[씬 세팅] DummyBoss를 찾지 못해 보스를 원점에 세웁니다. 위치를 직접 옮겨 주세요.");
             }
 
-            // 4. 아라쿠스 본체
+            // 플레이어가 서 있는 바닥 높이가 가장 믿을 만한 기준이다
+            if (player != null)
+                bossPosition.y = BottomOf(player.gameObject, bossPosition.y);
+
+            // 5. 아라쿠스 본체
             var bossGo = GameObject.Find(BossObjectName);
-            if (bossGo == null)
+            bool bossIsNew = bossGo == null;
+            if (bossIsNew)
             {
                 bossGo = new GameObject(BossObjectName);
                 Undo.RegisterCreatedObjectUndo(bossGo, "아라쿠스 만들기");
             }
-            bossGo.transform.position = bossPosition;
+            // 이미 있던 보스는 X는 건드리지 않고(직접 옮겼을 수 있다) 바닥 높이만 맞춘다
+            Undo.RecordObject(bossGo.transform, "아라쿠스 위치");
+            bossGo.transform.position = bossIsNew
+                ? bossPosition
+                : new Vector3(bossGo.transform.position.x, bossPosition.y, bossGo.transform.position.z);
 
             var boss = GetOrAdd<BossController>(bossGo);
             boss.bossId = "Arakus";
@@ -167,15 +182,14 @@ namespace ReversalTower.Integration.EditorTools
 
             GetOrAdd<BossHitboxVisualizer>(bossGo);
 
-            // 5. 그림 (Dark Knight 에셋)
+            // 6. 그림 (Royal Knight)
             bool visualOk = AttachVisual(boss);
 
-            // 6. 패턴 연결
+            // 7. 패턴 연결
             ArakusSamplePatterns.Assign(boss);
             EditorUtility.SetDirty(bossGo);
 
-            // 7. 플레이어에 다리 붙이기
-            var player = Object.FindAnyObjectByType<PlayerMovement>(FindObjectsInactive.Include);
+            // 8. 플레이어에 다리 붙이기
             if (player != null)
             {
                 GetOrAdd<PlayerBossHitAdapter>(player.gameObject).player = player;
@@ -462,6 +476,22 @@ namespace ReversalTower.Integration.EditorTools
             var c = go.GetComponent<T>();
             if (c == null) c = Undo.AddComponent<T>(go);
             return c;
+        }
+
+        /// <summary>
+        /// 오브젝트의 '발밑' 월드 Y를 구한다 (콜라이더 → 스프라이트 순서로 본다).
+        /// BossController는 피벗이 발밑이라, 피벗이 몸 가운데인 오브젝트의 위치를
+        /// 그대로 쓰면 보스가 공중에 뜬다.
+        /// </summary>
+        static float BottomOf(GameObject go, float fallback)
+        {
+            var col = go.GetComponentInChildren<Collider2D>();
+            if (col != null && col.bounds.size.y > 0.01f) return col.bounds.min.y;
+
+            var sr = go.GetComponentInChildren<SpriteRenderer>();
+            if (sr != null && sr.sprite != null && sr.bounds.size.y > 0.01f) return sr.bounds.min.y;
+
+            return fallback;
         }
     }
 }
