@@ -186,6 +186,10 @@ namespace ReversalTower.Integration.EditorTools
 
             GetOrAdd<BossHitboxVisualizer>(bossGo);
 
+            // 바닥 붙기(중력) — 언덕을 오르내리게 한다. 플레이어와 같은 Ground 마스크를 쓴다.
+            var snap = GetOrAdd<BossGroundSnap>(bossGo);
+            snap.groundMask = ReadPlayerGroundMask(player);
+
             // 6. 그림 (Royal Knight)
             bool visualOk = AttachVisual(boss);
 
@@ -496,6 +500,28 @@ namespace ReversalTower.Integration.EditorTools
             if (sr != null && sr.sprite != null && sr.bounds.size.y > 0.01f) return sr.bounds.min.y;
 
             return fallback;
+        }
+
+        /// <summary>
+        /// 플레이어가 바닥으로 쓰는 레이어 마스크를 그대로 가져온다.
+        /// PlayerMovement.groundLayer는 private이라 SerializedObject로 읽는다.
+        /// 둘이 같은 바닥을 봐야 보스와 플레이어가 같은 지형에 선다.
+        /// </summary>
+        static LayerMask ReadPlayerGroundMask(PlayerMovement player)
+        {
+            if (player != null)
+            {
+                var so = new SerializedObject(player);
+                var prop = so.FindProperty("groundLayer");
+                if (prop != null && prop.intValue != 0) return prop.intValue;
+            }
+
+            int ground = LayerMask.NameToLayer("Ground");
+            if (ground >= 0) return 1 << ground;
+
+            Debug.LogWarning("[씬 세팅] 바닥 레이어를 찾지 못했습니다. " +
+                             "보스의 Boss Ground Snap ▸ Ground Mask를 직접 지정해 주세요.");
+            return 0;
         }
 
         /// <summary>
