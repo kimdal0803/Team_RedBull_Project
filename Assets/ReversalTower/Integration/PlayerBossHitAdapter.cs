@@ -14,7 +14,11 @@ namespace ReversalTower.Integration
     /// 결과 판정은 '체력이 실제로 줄었는가'로 한다. 이게 가장 정확하다.
     ///   체력이 줄었다        → Hit
     ///   안 줄었고 패링 중이었다 → Parried  (보스가 경직에 걸린다)
-    ///   안 줄었다            → Ignored  (대시 무적·피격 무적으로 흘림)
+    ///   안 줄었고 살아 있다     → Missed   (= 회피. PlayerMovement에서 피해를 막는 것은 패링과 대시 무적뿐이다)
+    ///   그 밖 (사망 후, 회피불가 공격을 대시로 흘림, 패링 불가 공격을 패링으로 막음) → Ignored
+    ///
+    /// 대시로 피한 타를 Ignored로 두면 DDA의 대응 성공률((패링 + 회피) ÷ (날아온 타 − 무시))에서
+    /// 분모 · 분자가 같이 빠져, 대시를 잘 쓰는 플레이어일수록 성공률이 낮게 잡힌다 (DDA 설계서 1 · 7장).
     ///
     /// 붙이는 곳: 플레이어 오브젝트 (PlayerMovement와 같은 오브젝트 또는 그 자식)
     /// </summary>
@@ -31,6 +35,10 @@ namespace ReversalTower.Integration
         [Min(0.001f)] public float damageScale = 0.05f;
         [Tooltip("환산 결과가 0이 되지 않도록 하는 최소 피해")]
         [Min(0)] public int minDamage = 1;
+
+        [Header("기록")]
+        [Tooltip("대시 무적으로 흘린 타를 회피(Missed)로 센다. 끄면 예전처럼 무시(Ignored)로 센다.")]
+        public bool countDashAsDodge = true;
 
         [Header("넉백")]
         [Tooltip("PlayerMovement.TakeDamage에 넘길 넉백 방향의 위쪽 성분")]
@@ -64,6 +72,7 @@ namespace ReversalTower.Integration
 
             if (after < before) result = HitResult.Hit;
             else if (wasParrying && info.Parryable) result = HitResult.Parried;
+            else if (countDashAsDodge && damage > 0 && !wasParrying && !info.IgnoresDodge && before > 0) result = HitResult.Missed;
             else result = HitResult.Ignored;
 
             if (logToConsole)

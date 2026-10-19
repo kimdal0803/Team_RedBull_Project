@@ -55,6 +55,11 @@ namespace ReversalTower.Boss
         [Tooltip("패링 가능한 타를 전부 패링하면 걸리는 그로기(초). 0이면 없음. 예: 아디쿠스 낫 전체회전 2초")]
         [Min(0)] public float fullParryGroggyTime = 0f;
 
+        [Header("DDA")]
+        [Tooltip("켜면 DDA가 이 패턴은 조정하지 않는다 (연출용 · 튜토리얼 패턴, DDA 설계서 4장).\n" +
+                 "타격이 없는 패턴(퀵스텝 · 분노)과 weight 0인 강제 패턴(돌진 기믹)은 켜지 않아도 자동으로 빠진다.")]
+        public bool ddaExcluded = false;
+
         [Header("받는 피해 (패턴 진행 중)")]
         [Tooltip("1 = 그대로, 0.5 = 절반, 0 = 무적. 예: 맹목의 심판 0.5, 순간이동 소멸 중 0")]
         [Range(0f, 1f)] public float damageTakenMultiplier = 1f;
