@@ -24,12 +24,15 @@ namespace ReversalTower.Combat
             "battleId", "participantId", "bossId", "attemptNo", "ddaEnabled", "combatPower", "cleared", "endReason",
             "durationSec", "phaseReached", "damageDealt", "damageTaken", "hitCount", "ignoredCount", "dodgeCount",
             "parrySuccess", "parryChances", "potionUsed", "ultimateUsed", "skillUsed", "startedAtUtc", "buildVersion",
+            "experimentGroup", "ddaPolicy", "priorVersion", "protectionApplied",
         };
 
         static readonly string[] PatternHeader =
         {
             "battleId", "bossId", "patternId", "uses", "strikes", "hitCount", "parrySuccess", "parryChances",
             "ignoredCount", "dodgeCount", "damageTaken", "interrupted", "telegraphScale", "damageScale",
+            "ddaPolicy", "ddaStep", "ddaReason", "ctx1", "ctx2", "ctx3", "ctx4", "ctx5",
+            "ddaPredicted", "ddaUncertainty", "responseRate", "ddaReward",
         };
 
         static readonly string[] EventHeader =
@@ -54,6 +57,7 @@ namespace ReversalTower.Combat
                         s.parrySuccess, s.parryChances, s.potionUsed, s.ultimateUsed, s.skillUsed,
                         DateTimeOffset.FromUnixTimeMilliseconds(s.startedAtUnixMs).UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss"),
                         s.buildVersion,
+                        s.experimentGroup, s.ddaPolicy, s.priorVersion, s.protectionApplied,
                     },
                 });
 
@@ -64,6 +68,8 @@ namespace ReversalTower.Combat
                     {
                         p.battleId, p.bossId, p.patternId, p.uses, p.strikes, p.hitCount, p.parrySuccess, p.parryChances,
                         p.ignoredCount, p.dodgeCount, p.damageTaken, p.interrupted, p.TelegraphScale, p.DamageScale,
+                        s.ddaPolicy, p.ddaStep, p.ddaReason, Precise(p.ctx1), Precise(p.ctx2), Precise(p.ctx3), Precise(p.ctx4), Precise(p.ctx5),
+                        Precise(p.ddaPredicted), Precise(p.ddaUncertainty), Precise(p.responseRate), Precise(p.ddaReward),
                     });
                 }
                 Append("patterns.csv", PatternHeader, patternRows);
@@ -87,13 +93,55 @@ namespace ReversalTower.Combat
         static void Append(string fileName, string[] header, List<object[]> rows)
         {
             if (rows.Count == 0) return;
-            string path = Path.Combine(Folder, fileName);
+            string path = PrepareFile(Path.Combine(Folder, fileName), string.Join(",", header));
             var sb = new StringBuilder();
             bool isNew = !File.Exists(path);
             if (isNew) sb.AppendLine(string.Join(",", header));
             foreach (var row in rows) sb.AppendLine(ToCsvLine(row));
             File.AppendAllText(path, sb.ToString(), isNew ? new UTF8Encoding(true) : new UTF8Encoding(false));
         }
+
+        /// <summary>
+        /// 열이 바뀐 뒤(예: DDA 열 추가) 예전 파일에 이어 쓰면 칸이 어긋난다.
+        /// 머리글이 다르면 예전 파일을 이름을 바꿔 남겨 두고 새 파일을 시작한다.
+        /// 옮기지 못하면(엑셀로 열려 있는 등) 날짜를 붙인 새 파일에 쓴다. 돌려주는 값이 실제로 쓸 경로다.
+        /// </summary>
+        static string PrepareFile(string path, string header)
+        {
+            if (!File.Exists(path)) return path;
+            string first;
+            try
+            {
+                using (var reader = new StreamReader(path, Encoding.UTF8, true))
+                    first = reader.ReadLine() ?? "";
+            }
+            catch (Exception)
+            {
+                return path; // 읽지도 못하면 이어 쓰기도 실패한다 — Write의 catch가 경고를 남긴다
+            }
+            first = first.TrimStart('\uFEFF');
+            if (first == header) return path;
+
+            string dir = Path.GetDirectoryName(path) ?? "";
+            string name = Path.GetFileNameWithoutExtension(path);
+            string stamp = DateTime.Now.ToString("yyMMdd_HHmmss");
+            try
+            {
+                string old = Path.Combine(dir, $"{name}_old_{stamp}.csv");
+                File.Move(path, old);
+                Debug.Log($"[CombatLog] 열이 바뀌어 예전 기록을 {Path.GetFileName(old)}로 옮기고 새 {Path.GetFileName(path)}를 시작합니다.");
+                return path;
+            }
+            catch (Exception e)
+            {
+                string fallback = Path.Combine(dir, $"{name}_{stamp}.csv");
+                Debug.LogWarning($"[CombatLog] 예전 {Path.GetFileName(path)}를 옮기지 못해 ({e.Message}) {Path.GetFileName(fallback)}에 씁니다.");
+                return fallback;
+            }
+        }
+
+        /// <summary>DDA 문맥 · 예측은 초기값을 다시 만들 때 쓰므로 소수점 6자리까지 남긴다.</summary>
+        static string Precise(double value) => value.ToString("0.######", CultureInfo.InvariantCulture);
 
         static string ToCsvLine(object[] values)
         {
