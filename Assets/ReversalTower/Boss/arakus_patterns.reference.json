@@ -1,0 +1,347 @@
+{
+  "_meta": {
+    "source": "SPEC.md §5.1 (2026-10-22)",
+    "note": "선딜(telegraph)·총 길이(totalDuration)는 원본 기획서 타임라인 이미지에서 추출한 실측값. 쿨타임·판정높이·데미지계수는 2026-10-22 신규 지정.",
+    "unit": "거리 m (1 unit = 1m), 시간 s, 60fps 기준",
+    "damageNote": "coefficient는 '보스 공격력의 n%'. 보스 공격력 20, PC 최대 체력 100 기준."
+  },
+
+  "boss": {
+    "id": "arakus",
+    "nameKo": "아라쿠스",
+    "nameEn": "Arakus",
+    "order": 1,
+    "maxHP": 2000,
+    "_maxHP_status": "제안값 — 전투방식설계서 4.4의 '보스 HP 2000 기준' 계산에서 역산",
+    "attackPower": 20,
+    "bodyWidth": 0.5,
+    "bodyHeight": 2.4,
+    "_body_status": "제안값 — 아디쿠스 문서의 보스 규격을 차용",
+    "moveSpeed": 3.0,
+    "chargeSpeed": 10.0,
+    "_speed_status": "제안값 — 원본에 보스 이동속도 표기 없음. [shield_throw_dash]의 α 계산에 필요",
+    "phases": [
+      { "id": 1, "hpFrom": 1.0, "hpTo": 0.6 },
+      { "id": 2, "hpFrom": 0.6, "hpTo": 0.0 }
+    ],
+    "phase2": {
+      "trigger": "HP 30% 이하에서 [wrath] 시전",
+      "speedMultiplier": 1.5,
+      "_note": "원본: '버프가 걸리면 일정시간동안 보스의 모든 속도가 1.5배 증가'. 지속시간 미정"
+    },
+    "arena": {
+      "requiredObjects": ["돌진 기믹 저지용 충돌 오브젝트"],
+      "_note": "배치 위치는 레벨디자인에서 결정"
+    }
+  },
+
+  "patterns": [
+    {
+      "id": "arakus_normal_01",
+      "nameKo": "일반 공격 1 (거검 횡베기)",
+      "category": "normal",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 0.0, "max": 1.5 },
+      "telegraph": 1.05,
+      "totalDuration": 2.1,
+      "cooldown": 0.0,
+      "range": { "shape": "halfCircle", "radius": 1.5 },
+      "hitbox": { "heightMin": 0.5, "heightMax": 2.0 },
+      "jumpEvadable": false,
+      "damage": [90],
+      "parryable": true,
+      "parrySignalLeadTime": 0.3,
+      "knockback": "weak",
+      "ddaExcluded": false,
+      "anim": "Arakus_NormalAttack_R",
+      "fx": "Arakus_SwordAttack_FX",
+      "designNote": "주 게이지 수급 창구. 가장 자주 나오는 패턴이므로 패링 가능으로 지정."
+    },
+    {
+      "id": "arakus_normal_02",
+      "nameKo": "일반 공격 2 (방패 내려찍기)",
+      "category": "normal",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 0.0, "max": 1.0 },
+      "telegraph": 0.85,
+      "totalDuration": 1.9,
+      "cooldown": 0.0,
+      "range": { "shape": "line", "length": 1.0 },
+      "hitbox": { "heightMin": 0.0, "heightMax": 1.0 },
+      "jumpEvadable": true,
+      "damage": [70],
+      "parryable": false,
+      "knockback": "medium",
+      "ddaExcluded": false,
+      "anim": "Arakus_NormalAttack_L",
+      "fx": "Arakus_ShieldAttack_FX",
+      "designNote": "방패는 '막는 무기'이므로 패링 불가. 점프 또는 대시로 회피."
+    },
+    {
+      "id": "arakus_normal_03",
+      "nameKo": "일반 공격 3 (발차기)",
+      "category": "normal",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 0.0, "max": 0.5 },
+      "telegraph": 0.8,
+      "totalDuration": 1.2,
+      "cooldown": 0.0,
+      "range": { "shape": "line", "length": 0.5 },
+      "hitbox": { "heightMin": 0.0, "heightMax": 0.8 },
+      "jumpEvadable": true,
+      "damage": [50],
+      "parryable": false,
+      "knockback": "weak",
+      "followUp": { "onHit": true, "note": "피격 시 추가 연계 공격 가능 — 연계 내용 미정" },
+      "ddaExcluded": false,
+      "anim": "Arakus_NormalAttack_F",
+      "fx": null
+    },
+    {
+      "id": "arakus_quickstep",
+      "nameKo": "퀵스텝",
+      "category": "evade",
+      "phases": [1, 2],
+      "trigger": "PC가 보스 시야 밖에 있을 때",
+      "telegraph": null,
+      "totalDuration": 0.4,
+      "cooldown": 6.0,
+      "moveDistance": 0.75,
+      "damage": [],
+      "parryable": false,
+      "invulnerable": false,
+      "ddaExcluded": true,
+      "anim": "Arakus_Quickstep",
+      "fx": "Arakus_Dirt_FX",
+      "designNote": "시전 중에도 플레이어는 공격을 적중시킬 수 있음. 공격이 아니므로 DDA 제외."
+    },
+    {
+      "id": "arakus_greatsword_swing",
+      "nameKo": "거검 휘두르기",
+      "category": "skill",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 0.0, "max": 2.0 },
+      "telegraph": 0.8,
+      "totalDuration": 1.6,
+      "cooldown": 10.0,
+      "range": { "shape": "line", "length": 2.0 },
+      "hitbox": { "heightMin": 0.3, "heightMax": 2.4 },
+      "jumpEvadable": false,
+      "damage": [130],
+      "parryable": true,
+      "parrySignalLeadTime": 0.3,
+      "knockback": "medium",
+      "ddaExcluded": false,
+      "anim": "Sword_Swinging",
+      "fx": "Arakus_SwordSwinging_FX",
+      "designNote": "원본: '패링으로 상쇄하여 딜타임을 벌 수 있는 양날의검'. 피격 시 경직 후 1m 날아감.",
+      "ddaWarning": "130% × +2단계(×1.20) = 156% = 31.2 피해 → 한 방 상한(최대 HP 30% = 30)에서 절단됨"
+    },
+    {
+      "id": "arakus_shield_throw_dash",
+      "nameKo": "방패 투척 후 대쉬 공격",
+      "category": "skill",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 3.0, "max": 7.0 },
+      "totalDuration": "0.85 + alpha + beta",
+      "cooldown": 12.0,
+      "sequence": [
+        {
+          "step": "throw",
+          "telegraph": 0.85,
+          "range": { "shape": "line", "length": 7.0 },
+          "hitbox": { "heightMin": 0.8, "heightMax": 1.6 },
+          "jumpEvadable": true,
+          "damage": 60,
+          "parryable": false,
+          "knockback": "weak"
+        },
+        {
+          "step": "dashSlash",
+          "telegraph": "0.85 + alpha",
+          "_alpha": "보스-플레이어 거리 ÷ chargeSpeed. 7m에서 발동 시 약 0.7s",
+          "range": { "shape": "line", "length": 1.0 },
+          "hitbox": { "heightMin": 0.3, "heightMax": 1.8 },
+          "jumpEvadable": false,
+          "damage": 80,
+          "parryable": true,
+          "parrySignalLeadTime": 0.3,
+          "knockback": "medium"
+        }
+      ],
+      "ddaExcluded": false,
+      "anim": "Shield_Throwing_Dash_Attack",
+      "fx": "Shield_Throwing_FX",
+      "designNote": "원거리 공략 방지. 투척은 점프로 넘기고 근접 베기는 패링 — 회피 수단을 섞게 함."
+    },
+    {
+      "id": "arakus_shield_charge",
+      "nameKo": "방패 돌진",
+      "category": "skill",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 3.0, "max": 5.0 },
+      "telegraph": 0.5,
+      "totalDuration": 2.6,
+      "cooldown": 14.0,
+      "range": { "shape": "line", "length": 5.0 },
+      "hitbox": { "heightMin": 0.0, "heightMax": 1.6 },
+      "jumpEvadable": true,
+      "multiHit": { "count": 5, "interval": 0.4 },
+      "damage": [35, 35, 35, 35, 35],
+      "parryable": false,
+      "knockback": "none",
+      "knockbackFinalHit": "medium",
+      "ddaExcluded": false,
+      "anim": "Shield_Dash",
+      "fx": "Shield_Dash_FX",
+      "modified": true,
+      "modificationNote": "원본은 0.25s 간격 약 8타. 간격 0.25s < 피격 무적 0.35s라 격타마다 막혀 DDA 연타 조정이 무효가 됨. 간격 0.4s / 5타로 수정. 원본 메모 'Hit의 개수는 변경할 수 있음' 참조.",
+      "ddaWarning": "선딜 0.5s × ×0.80 = 0.40s — DDA 선딜 하한에 정확히 걸림. 더 줄이지 말 것.",
+      "designNote": "다단히트 중간 타는 넉백 없음 (넉백이 있으면 나머지 타가 빗나감 — 전투방식설계서 4.2)"
+    },
+    {
+      "id": "arakus_shield_throw_slam",
+      "nameKo": "방패 던지고 내려찍기",
+      "category": "skill",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 3.0, "max": 7.0 },
+      "totalDuration": 1.8,
+      "cooldown": 12.0,
+      "sequence": [
+        {
+          "step": "throw",
+          "telegraph": 0.6,
+          "range": { "shape": "line", "length": 7.0 },
+          "hitbox": { "heightMin": 0.8, "heightMax": 1.6 },
+          "jumpEvadable": true,
+          "damage": 60,
+          "parryable": false,
+          "knockback": "weak"
+        },
+        {
+          "step": "flySlam",
+          "telegraph": 1.35,
+          "range": { "shape": "line", "length": 1.5 },
+          "hitbox": { "heightMin": 0.0, "heightMax": 2.2 },
+          "jumpEvadable": false,
+          "damage": 110,
+          "parryable": false,
+          "knockback": "strong"
+        }
+      ],
+      "ddaExcluded": false,
+      "anim": "Shield_Throwing_Fly_Attack",
+      "fx": ["Shield_Throwing_FX", "Shield_Fly_Attack_FX"],
+      "designNote": "[shield_throw_dash]와 같은 투척으로 시작해 이지선다를 건다. 0.85s vs 0.6s 선딜 차이로 구분 가능."
+    },
+    {
+      "id": "arakus_sweeping_blow",
+      "nameKo": "일대 휩쓸기",
+      "category": "skill",
+      "phases": [1, 2],
+      "distanceCondition": { "min": 0.0, "max": 4.5 },
+      "totalDuration": 3.0,
+      "cooldown": 20.0,
+      "sequence": [
+        {
+          "step": "horizontalSlash",
+          "telegraph": 1.0,
+          "range": { "shape": "line", "length": 4.5 },
+          "hitbox": { "heightMin": 0.5, "heightMax": 2.4 },
+          "jumpEvadable": false,
+          "damage": 80,
+          "parryable": false,
+          "knockback": "medium"
+        },
+        {
+          "step": "verticalSlash",
+          "telegraph": 2.0,
+          "range": { "shape": "line", "length": 2.0 },
+          "hitbox": { "heightMin": 0.0, "heightMax": 2.4 },
+          "jumpEvadable": false,
+          "damage": 100,
+          "parryable": false,
+          "knockback": "strong"
+        }
+      ],
+      "ddaExcluded": false,
+      "anim": "Arakus_Aggressive_Attack",
+      "fx": "Arakus_Aggressive_Attack_FX",
+      "modified": true,
+      "modificationNote": "원본 범위 6m는 설계 상한(대시 4m + 1m = 5m) 초과로 대응 불가. 횡베기 4.5m / 종베기 2m로 축소. 1타를 대시로 이탈하면 2타는 자동으로 안전 거리.",
+      "designNote": "보스 최강기. 유일한 '패링 불가 + 대시 전용' 패턴으로 남긴다."
+    },
+    {
+      "id": "arakus_wrath",
+      "nameKo": "아라쿠스의 분노",
+      "category": "buff",
+      "phases": [2],
+      "trigger": "HP 30% 이하 (1회)",
+      "telegraph": 2.5,
+      "totalDuration": 5.0,
+      "cooldown": null,
+      "maxUses": 1,
+      "damage": [],
+      "parryable": false,
+      "effects": {
+        "speedMultiplier": 1.5,
+        "damageTakenReduction": "감소 (수치 미정)",
+        "duration": "미정"
+      },
+      "ddaExcluded": true,
+      "anim": "Arakus_Of_Wrath",
+      "fx": "Arakus_Of_Wrath_FX",
+      "designNote": "시전 중 받는 피해 감소 = 플레이어 재정비 시간. 연출 패턴이므로 DDA 제외."
+    },
+    {
+      "id": "arakus_charge_gimmick",
+      "nameKo": "돌진 (기믹)",
+      "category": "gimmick",
+      "phases": [2],
+      "trigger": "2페이즈 진입 후",
+      "telegraph": 1.1,
+      "totalDuration": 1.5,
+      "cooldown": null,
+      "maxUses": 2,
+      "range": { "shape": "line", "length": "맵 끝까지" },
+      "hitbox": { "heightMin": 0.0, "heightMax": 2.4 },
+      "jumpEvadable": false,
+      "damage": [150],
+      "parryable": false,
+      "knockback": "strong",
+      "counterplay": "다른 오브젝트와의 충돌로 돌진을 저지",
+      "ddaExcluded": true,
+      "anim": "Arakus_Charge",
+      "fx": null,
+      "designNote": "피지컬 피로도 조절용 기믹. 파훼 실패 시 프리딜 없음.",
+      "ddaWarning": "150% × ×1.20 = 180% = 36 피해 → 한 방 상한(30)에서 절단. 단 기믹이므로 ddaExcluded=true 권장"
+    }
+  ],
+
+  "validation": {
+    "attackPatternCount": 8,
+    "parryablePatternCount": 3,
+    "parryableRatio": 0.375,
+    "parryableTarget": "0.35 ~ 0.40",
+    "parryablePass": true,
+    "jumpEvadableCount": 4,
+    "dashOnlyCount": 3,
+    "telegraphFloorCheck": {
+      "rule": "telegraph × 0.80 >= 0.40 (DDA 선딜 하한)",
+      "allPass": true,
+      "borderline": ["arakus_shield_charge (0.50 × 0.80 = 0.40)"]
+    },
+    "oneHitCapCheck": {
+      "rule": "damage × 1.20 × 20 <= 30 (최대 HP의 30%)",
+      "clamped": ["arakus_greatsword_swing (31.2 → 30)", "arakus_charge_gimmick (36 → 30)"]
+    }
+  },
+
+  "openQuestions": [
+    "보스 체력 2000 확정 여부",
+    "보스 이동속도 / 돌진 속도 (shield_throw_dash의 alpha 계산에 필요)",
+    "아라쿠스의 분노 지속 시간 및 받는 피해 감소율",
+    "일반 공격 3 피격 시 추가 연계 공격의 내용",
+    "돌진 기믹 충돌 오브젝트의 배치 (레벨디자인)"
+  ]
+}

@@ -1,7 +1,11 @@
 using System.Collections;
 using UnityEngine;
 
-public class PlayerMovement : MonoBehaviour
+// partial — 기능별 추가 구현이 Assets/ReversalTower/Player/ 아래에 나뉘어 있다.
+//   PlayerMovement.Locomotion.cs  코요테 타임 · 점프 버퍼 · 가변 점프
+//   PlayerMovement.DashStack.cs   스택형 대시 (2스택 / 충전 2.5s / 무적 0.15s)
+//   PlayerMovement.HitRules.cs    패링 가능 · 회피 불가 판정
+public partial class PlayerMovement : MonoBehaviour
 {
     // 씬 이동(로비 -> BossTest) 시 강화된 스탯 보존용 static 변수
     public static int savedAttack = -1;
@@ -21,7 +25,8 @@ public class PlayerMovement : MonoBehaviour
     [Header("대시(회피) 세팅")]
     [SerializeField] private float dashSpeed = 16f;
     [SerializeField] private float dashDuration = 0.18f;
-    [SerializeField] private float dashCooldown = 0.8f;
+    // dashCooldown 제거됨 — 스택형 대시로 대체.
+    // 충전 시간은 PlayerMovement.DashStack.cs의 dashStackRechargeTime(기본 2.5초)을 쓴다.
     [SerializeField]
     private Color dashColor =
         new Color(0.4f, 0.4f, 0.4f, 1f);
@@ -196,7 +201,7 @@ public class PlayerMovement : MonoBehaviour
     private bool _isAttackCoolingDown;
 
     private bool _isDashing;
-    private bool _canDash = true;
+    // _canDash 제거됨 — 스택형 대시로 대체 (PlayerMovement.DashStack.cs의 CanDashNow)
     private bool _isInvincible;
 
     private bool _isKnockedBack;
@@ -347,11 +352,19 @@ public class PlayerMovement : MonoBehaviour
         _wasGrounded = _isGrounded;
 
         // -----------------------------------------------------
+        // 0. 기동 보조 · 대시 스택 (전투방식설계서 2.2 / 2.3)
+        //    구현은 PlayerMovement.Locomotion.cs / .DashStack.cs
+        // -----------------------------------------------------
+
+        TickDashStacks();
+        TickJumpAssist();
+
+        // -----------------------------------------------------
         // 1. 대시 / 회피
         // -----------------------------------------------------
 
         if (Input.GetKeyDown(KeyCode.LeftShift)
-            && _canDash
+            && CanDashNow
             && !_isKnockedBack)
         {
             float currentInput =
@@ -583,22 +596,11 @@ public class PlayerMovement : MonoBehaviour
                 _horizontalInput = rawInput;
             }
 
-            // 점프
-            if (Input.GetKeyDown(KeyCode.Space)
-                && _isGrounded
-                && !_isAttacking)
-            {
-                _isJumpPressed = true;
-
-                if (_animator != null)
-                {
-                    _animator.Play(
-                        "Hero_Jump",
-                        0,
-                        0f
-                    );
-                }
-            }
+            // 점프 입력은 TickJumpAssist()가 처리한다.
+            // (PlayerMovement.Locomotion.cs — 코요테 타임 · 점프 버퍼 · 가변 점프)
+            //
+            // 기존에는 여기서 `GetKeyDown(Space) && _isGrounded`로 바로 받았는데,
+            // 발판 끝에서 한 프레임만 늦어도 점프가 씹히는 문제가 있었다.
         }
 
         // -----------------------------------------------------
@@ -2010,9 +2012,12 @@ private IEnumerator WCooldownRoutine()
 
     private IEnumerator DashRoutine()
     {
-        _canDash = false;
+        // 스택 소모 + 무적 타이머 시작.
+        // 구현은 PlayerMovement.DashStack.cs
+        //   설계서 2.3: 스택 2회 / 충전 2.5s / 무적은 앞 0.15s만
+        ConsumeDashStack();
         _isDashing = true;
-        _isInvincible = true;
+        StartCoroutine(DashInvincibilityRoutine());
 
         if (_isAttacking)
         {
@@ -2109,14 +2114,9 @@ private IEnumerator WCooldownRoutine()
         }
 
         _isDashing = false;
-        _isInvincible = false;
 
-        yield return
-            new WaitForSeconds(
-                dashCooldown
-            );
-
-        _canDash = true;
+        // 무적 해제는 DashInvincibilityRoutine이 0.15초 뒤에 따로 한다.
+        // 쿨타임 대신 스택 충전(TickDashStacks)을 쓰므로 여기서 기다리지 않는다.
     }
 
     private IEnumerator SpawnGhostsRoutine()
@@ -2208,14 +2208,20 @@ private IEnumerator WCooldownRoutine()
         int damage,
         Vector2 knockbackDir)
     {
-        if (_isDead
-            || _isInvincible
-            || _isDashing)
+        if (_isDead)
         {
             return;
         }
 
-        if (IsParrying)
+        // 무적 판정 — 회피 불가(IgnoresDodge) 공격은 무적을 뚫는다.
+        // 구현은 PlayerMovement.HitRules.cs
+        if (IsHitBlockedByInvincibility)
+        {
+            return;
+        }
+
+        // 패링 판정 — 패링 불가 패턴은 패링 중이어도 막히지 않는다.
+        if (IsHitParried)
         {
             Debug.Log(
                 "<color=green>" +

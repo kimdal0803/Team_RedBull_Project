@@ -57,7 +57,12 @@ namespace ReversalTower.Integration
             int before = player.CurrentHealth;
 
             var knockback = new Vector2(info.Direction, knockbackUp).normalized;
-            player.TakeDamage(damage, knockback);
+
+            // 패링 가부 · 회피 가부를 그대로 넘긴다.
+            // 플레이어 쪽 구현: PlayerMovement.HitRules.cs
+            //   패링 불가 패턴 → 패링 중이어도 막히지 않는다
+            //   회피 불가 공격 → 대시·피격 무적을 뚫는다
+            player.TakeDamage(damage, knockback, info.Parryable, info.IgnoresDodge);
 
             int after = player.CurrentHealth;
             HitResult result;
@@ -69,12 +74,12 @@ namespace ReversalTower.Integration
             if (logToConsole)
             {
                 string note = "";
-                // 기획서상 회피불가 공격은 무적을 뚫어야 하지만, PlayerMovement를 고치지 않는 한
-                // 대시·피격 무적이 그대로 막는다. 기록에 남도록 표시만 해 둔다.
+
+                // 아래 두 경우는 이제 일어나면 안 된다. 남아 있으면 연결이 끊긴 것이다.
                 if (info.IgnoresDodge && result == HitResult.Ignored)
-                    note = "  ※ 회피불가 공격인데 무적으로 막혔습니다 (PlayerMovement 보강 필요)";
-                else if (wasParrying && !info.Parryable && result != HitResult.Hit)
-                    note = "  ※ 패링 불가 공격인데 패링으로 막혔습니다 (PlayerMovement 보강 필요)";
+                    note = "  ※ 회피불가 공격이 무적에 막혔습니다 — HitRules 연결 확인 필요";
+                else if (wasParrying && !info.Parryable && result == HitResult.Parried)
+                    note = "  ※ 패링 불가 공격이 패링으로 막혔습니다 — HitRules 연결 확인 필요";
 
                 Debug.Log($"[피격 어댑터] {info.PatternId} {info.HitIndex + 1}타 → {result} " +
                           $"(보스 {info.Damage:0.#} → 플레이어 {damage}){note}", this);
