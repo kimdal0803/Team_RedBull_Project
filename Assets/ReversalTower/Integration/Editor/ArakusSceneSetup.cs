@@ -222,6 +222,10 @@ namespace ReversalTower.Integration.EditorTools
             // 7-3. 패턴별 이펙트 연결
             int fxCount = AssignEffects(boss);
 
+            // 7-4. 소리 + 상태 연출 (패링·그로기·페이즈 전환·사망)
+            GetOrAdd<BossStateFx>(bossGo);
+            int sfxCount = AssignAudio(boss);
+
             // 8. 수집기
             var collectorGo = GameObject.Find(CollectorObjectName);
             if (collectorGo == null)
@@ -262,6 +266,7 @@ namespace ReversalTower.Integration.EditorTools
                 $"기존 더미   {(foundDummy ? "껐습니다 (지우지 않음)" : "찾지 못함")}\n" +
                 $"플레이어    {(player != null ? "어댑터·릴레이 연결됨" : "직접 붙여야 함")}\n" +
                 $"이펙트      패턴 {fxCount}개에 연결됨\n" +
+                $"소리        패턴 {sfxCount}개 + 패링·그로기·페이즈·사망\n" +
                 $"패턴 표시   공격 범위가 게임 화면에 색으로 보입니다\n\n" +
                 "Play를 누르고 Game 창을 클릭한 뒤 보스에게 다가가 보세요.";
 
@@ -440,6 +445,71 @@ namespace ReversalTower.Integration.EditorTools
 
             EditorUtility.SetDirty(player);
             return player.patternEffects.Count;
+        }
+
+        // ─────────────────────── 소리 연결 ───────────────────────
+
+        const string SoundFolder = "Assets/MyAssets/Dark Knight/Sounds";
+
+        /// <summary>
+        /// 패턴 ID → (효과음 파일, 피치).
+        /// 지금 쓸 수 있는 클립이 6개뿐이라 피치로 패턴을 구분한다.
+        /// 낮을수록 묵직하고 큰 공격처럼, 높을수록 가볍고 빠른 동작처럼 들린다.
+        /// 진짜 효과음이 생기면 Inspector에서 클립만 갈아끼우면 된다.
+        /// </summary>
+        static readonly (string pattern, string clip, float pitch)[] PatternSounds =
+        {
+            ("Arakus_NormalAttack_R",  "sword",      1.00f),  // 일반 공격 1
+            ("Arakus_NormalAttack_L",  "sword",      1.15f),  // 일반 공격 2 — 조금 가볍게
+            ("Arakus_NormalAttack_F",  "sword",      1.30f),  // 발차기 — 가장 가볍게
+            ("Arakus_SwordSwinging",   "sword",      0.70f),  // 거검 — 묵직
+            ("Arakus_SweepingStrike",  "sword",      0.58f),  // 일대 휩쓸기 — 가장 묵직
+            ("Arakus_ShieldDash",      "footstep",   0.80f),  // 방패 돌진 — 둔탁한 발
+            ("Arakus_Charge",          "beam",       0.65f),  // 돌진 기믹 — 크고 낮게
+            ("Arakus_ShieldThrowDash", "beam",       1.25f),  // 방패 투척 — 날카롭게
+            ("Arakus_ShieldThrowSlam", "beam",       0.90f),  // 내려찍기
+            ("Arakus_Rage",            "power_load", 1.00f),  // 분노 — 기 모으기
+            ("Arakus_QuickStep",       "footstep",   1.45f),  // 퀵스텝 — 가벼운 스텝
+        };
+
+        static int AssignAudio(BossController boss)
+        {
+            var audio = GetOrAdd<BossAudio>(boss.gameObject);
+
+            audio.patternSounds.Clear();
+            int count = 0;
+            foreach (var (pattern, clip, pitch) in PatternSounds)
+            {
+                var c = LoadClip(clip);
+                if (c == null) continue;
+                audio.patternSounds.Add(new BossAudio.PatternSound
+                {
+                    patternId = pattern,
+                    clip = c,
+                    pitch = pitch,
+                    volume = 1f,
+                });
+                count++;
+            }
+
+            // 상태 소리 — 화면 연출과 짝이 되도록
+            audio.parrySuccess = new BossAudio.Cue(LoadClip("sword"), 1.85f, 1f);        // 높은 쇳소리
+            audio.groggy = new BossAudio.Cue(LoadClip("pain"), 0.55f, 1f);               // 둔탁하게
+            audio.phaseChange = new BossAudio.Cue(LoadClip("power_load"), 0.80f, 1f);
+            audio.death = new BossAudio.Cue(LoadClip("DeathExplosion"), 1.00f, 1f);
+            audio.bossHurt = new BossAudio.Cue(LoadClip("pain"), 1.05f, 0.5f);
+
+            if (count == 0)
+                Debug.LogWarning($"[씬 세팅] 효과음을 찾지 못했습니다: {SoundFolder}\n" +
+                                 "소리 없이 진행합니다. 클립이 생기면 보스의 Boss Audio에 직접 넣어 주세요.");
+
+            EditorUtility.SetDirty(audio);
+            return count;
+        }
+
+        static AudioClip LoadClip(string name)
+        {
+            return AssetDatabase.LoadAssetAtPath<AudioClip>($"{SoundFolder}/{name}.wav");
         }
 
         // ─────────────────── 애니메이터 트리거 ───────────────────
