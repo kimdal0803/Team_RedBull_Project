@@ -226,6 +226,9 @@ namespace ReversalTower.Integration.EditorTools
             GetOrAdd<BossStateFx>(bossGo);
             int sfxCount = AssignAudio(boss);
 
+            // 7-5. 연출 확인용 치트키 (1~5). 발표·빌드 전에 꺼야 한다.
+            GetOrAdd<BossFxTester>(bossGo);
+
             // 8. 수집기
             var collectorGo = GameObject.Find(CollectorObjectName);
             if (collectorGo == null)
