@@ -23,6 +23,8 @@ namespace ReversalTower.Combat
     {
         /// <summary>전투 한 판이 끝났을 때. CombatLogBridge·DDA가 구독한다.</summary>
         public static event Action<BattleReport> BattleFinished;
+        /// <summary>기록을 시작한 직후 (보스가 첫 패턴을 쓰기 전). DDA 매니저가 여기서 이번 전투의 단계를 건다.</summary>
+        public static event Action<CombatDataCollector> BattleBegan;
         /// <summary>지금 기록 중인 수집기 (없으면 null)</summary>
         public static CombatDataCollector Active { get; private set; }
 
@@ -38,8 +40,11 @@ namespace ReversalTower.Combat
 
         public bool IsRecording { get; private set; }
         public BattleContext Context { get; private set; }
+        /// <summary>지금 기록 중인 전투의 ID (기록 중이 아니면 마지막 전투)</summary>
+        public string CurrentBattleId => summary != null ? summary.battleId : null;
 
         BattleSummary summary;
+        DdaBattleLog ddaLog;
         readonly Dictionary<string, PatternStats> patterns = new Dictionary<string, PatternStats>();
         readonly List<CombatLogEntry> events = new List<CombatLogEntry>();
         float startTime;
@@ -50,6 +55,7 @@ namespace ReversalTower.Combat
         static void ResetStatics()
         {
             BattleFinished = null;
+            BattleBegan = null;
             Active = null;
             quitting = false;
             Application.quitting -= OnQuitting;
@@ -94,6 +100,7 @@ namespace ReversalTower.Combat
             Context = context ?? new BattleContext { bossId = target.bossId };
             patterns.Clear();
             events.Clear();
+            ddaLog = null;
             startTime = Time.time;
             playerHp = 100f;
 
@@ -113,7 +120,23 @@ namespace ReversalTower.Combat
             IsRecording = true;
             Active = this;
             if (logToConsole) Debug.Log($"[Collector] 기록 시작 {summary.battleId} — {summary.bossId} {summary.attemptNo}번째 도전, DDA {(summary.ddaEnabled ? "적용" : "미적용")}", this);
+
+            var began = BattleBegan;
+            if (began != null)
+            {
+                foreach (Action<CombatDataCollector> handler in began.GetInvocationList())
+                {
+                    try { handler(this); }
+                    catch (Exception e) { Debug.LogException(e); }
+                }
+            }
         }
+
+        /// <summary>
+        /// DDA가 이번 전투에 건 단계 · 문맥 · 예측을 받아 둔다 (DDA 설계서 11장 ④).
+        /// 전투가 끝날 때 전투 요약과 패턴별 집계에 옮겨 적는다.
+        /// </summary>
+        public void SetDdaLog(DdaBattleLog log) => ddaLog = log;
 
         /// <summary>중간 포기 (일시정지 → 로비 등)</summary>
         public void AbortBattle() => EndBattle(BattleEndReason.Quit);
@@ -130,6 +153,8 @@ namespace ReversalTower.Combat
             summary.durationSec = Time.time - startTime;
             if (boss != null) summary.phaseReached = Mathf.Max(summary.phaseReached, boss.Phase);
             AddLog("BattleEnd", result: reason.ToString());
+            ApplyDdaLog();
+            foreach (var stats in patterns.Values) stats.ComputeResponse();
 
             var report = new BattleReport
             {
@@ -246,7 +271,7 @@ namespace ReversalTower.Combat
                     stats.ignoredCount++;
                     summary.ignoredCount++;
                     break;
-                case HitResult.Missed:
+                case HitResult.Missed: // 판정 밖으로 피함 + 대시 무적으로 흘림 (PlayerBossHitAdapter)
                     stats.dodgeCount++;
                     summary.dodgeCount++;
                     break;
@@ -300,6 +325,32 @@ namespace ReversalTower.Combat
         void OnPlayerDied() => EndBattle(BattleEndReason.PlayerDead);
 
         // ─────────────────────────── 내부 ───────────────────────────
+
+        void ApplyDdaLog()
+        {
+            if (ddaLog == null) return;
+            summary.experimentGroup = ddaLog.group ?? "";
+            summary.ddaPolicy = ddaLog.policy ?? "none";
+            summary.priorVersion = ddaLog.priorVersion ?? "";
+            summary.protectionApplied = ddaLog.protectionApplied;
+
+            foreach (var stats in patterns.Values)
+            {
+                if (stats.patternId == null || !ddaLog.patterns.TryGetValue(stats.patternId, out var p) || p == null) continue;
+                stats.ddaStep = p.step;
+                stats.ddaReason = p.reason ?? "";
+                if (p.ctx != null && p.ctx.Length >= 5)
+                {
+                    stats.ctx1 = p.ctx[0];
+                    stats.ctx2 = p.ctx[1];
+                    stats.ctx3 = p.ctx[2];
+                    stats.ctx4 = p.ctx[3];
+                    stats.ctx5 = p.ctx[4];
+                }
+                stats.ddaPredicted = p.predicted;
+                stats.ddaUncertainty = p.uncertainty;
+            }
+        }
 
         bool HasActivity() =>
             patterns.Count > 0 || summary.damageDealt > 0f || summary.skillUsed > 0 || summary.potionUsed > 0 || summary.ultimateUsed > 0;
