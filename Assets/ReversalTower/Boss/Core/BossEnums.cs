@@ -10,6 +10,8 @@ namespace ReversalTower.Boss
         Dash,       // 이동하면서 판정 (방패 돌진, 돌진 기믹, 퀵스텝)
         Projectile, // 날아가는 물체를 띄운다. 이동(Dash 설정)도 같이 쓸 수 있다
                     // (아라쿠스 방패 투척 후 대쉬, 방패 던지고 내려찍기)
+        Scripted,   // 보스 전용 스크립트가 실행기를 직접 등록한다 (파네스: PhanesBrain이 등록).
+                    // 등록한 스크립트가 없으면 Melee로 대신 실행되고 경고가 뜬다.
     }
 
     /// <summary>
@@ -20,6 +22,8 @@ namespace ReversalTower.Boss
         Boss,       // 보스 몸 기준 (기본). HitboxShape의 anchor·forwardStart를 그대로 쓴다
         Projectile, // 날아가는 투사체 기준. 박스가 투사체 한가운데를 따라다닌다
                     // (PatternKind.Projectile인 패턴에서만 의미가 있다)
+        World,      // 실행기가 월드 좌표에 직접 놓는 판정 (빛 기둥, 바닥 레이저, 장판, 맵 전체 폭발).
+                    // 보스 몸 기준 처리·기즈모·게임 화면 박스 표시에서 빠지고, 실행기가 스스로 그린다.
     }
 
     /// <summary>넉백 4단계 (전투방식설계서 4.2)</summary>

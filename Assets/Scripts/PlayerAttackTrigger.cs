@@ -59,6 +59,16 @@ public class PlayerAttackTrigger : MonoBehaviour
             return;
         }
 
+        // 1-1. 보스 기믹 오브젝트 타격 (파네스 결계벽, 환영 분신 등)
+        //      보스 본체보다 먼저 확인한다. 콜라이더가 자식에 있을 수 있어 부모까지 찾는다.
+        IPlayerAttackTarget gimmick = other.GetComponentInParent<IPlayerAttackTarget>();
+        if (gimmick != null)
+        {
+            _hitList.Add(other);
+            gimmick.TakePlayerHit(dmg, "플레이어 공격");
+            return;
+        }
+
         // 1-2. FSM 보스(아라쿠스 등) 타격
         //      콜라이더가 자식 오브젝트에 있을 수 있어 부모까지 거슬러 찾는다.
         //      TakeDamage의 두 번째 인자는 '원인'으로, 전투 기록의 skill 칸에 남는다.

@@ -39,8 +39,8 @@ namespace ReversalTower.Boss
 
         protected override bool HandlesHit(in HitEvent e)
         {
-            // 투사체가 들고 가는 판정은 보스 몸 기준으로 처리하지 않는다
-            return e.Source == null || e.Source.carrier != HitCarrier.Projectile;
+            // 투사체가 들고 가는 판정(과 월드 좌표 판정)은 보스 몸 기준으로 처리하지 않는다
+            return e.Source == null || e.Source.carrier == HitCarrier.Boss;
         }
 
         public override bool Tick(float attackTime, float dt)

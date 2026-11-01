@@ -105,8 +105,9 @@ namespace ReversalTower.Integration
             EnsureRoot();
             foreach (var e in run.Hits)
             {
-                // 투사체가 들고 가는 판정은 방패 자신이 보여 준다
-                if (e.Source == null || e.Source.carrier == HitCarrier.Projectile) continue;
+                // 투사체가 들고 가는 판정은 방패 자신이 보여 주고,
+                // 월드 좌표 판정(파네스 빛 기둥·장판 등)은 패턴 실행기가 직접 경고 표시를 그린다
+                if (e.Source == null || e.Source.carrier != HitCarrier.Boss) continue;
                 boxes.Add(CreateBox(e));
             }
         }
