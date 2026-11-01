@@ -217,7 +217,8 @@ namespace ReversalTower.Boss
             while (run.nextSignalIndex < run.Hits.Count)
             {
                 var e = run.Hits[run.nextSignalIndex];
-                if (!e.Source.parryable)
+                // 투사체가 들고 가는 판정은 언제 닿을지 시간표로 알 수 없어서 투사체가 직접 신호를 보낸다 (SignalParry)
+                if (!e.Source.parryable || e.Source.carrier == HitCarrier.Projectile)
                 {
                     run.nextSignalIndex++;
                     continue;
@@ -225,10 +226,20 @@ namespace ReversalTower.Boss
                 float signalAt = run.Telegraph + e.Time - parrySignalLead;
                 if (run.Elapsed < signalAt) break;
                 run.nextSignalIndex++;
-                lastParrySignalTime = Time.time;
-                if (logToConsole) Debug.Log($"[{bossId}] 패링 신호 — {run.PatternId} {e.Index + 1}타 ({parrySignalLead:0.##}초 뒤 판정)", this);
-                ParrySignal?.Invoke(run, e);
+                SignalParry(run, e);
             }
+        }
+
+        /// <summary>
+        /// 패링 신호를 지금 보낸다. 시간표 판정은 AdvanceRunClock이 알아서 부르고,
+        /// 날아가는 투사체(파네스 광탄 등)는 플레이어에게 닿기 parrySignalLead초 전에 스스로 부른다.
+        /// </summary>
+        public void SignalParry(PatternRun run, HitEvent e)
+        {
+            if (run == null || e.Source == null || !e.Source.parryable) return;
+            lastParrySignalTime = Time.time;
+            if (logToConsole) Debug.Log($"[{bossId}] 패링 신호 — {run.PatternId} {e.Index + 1}타 ({parrySignalLead:0.##}초 뒤 판정)", this);
+            ParrySignal?.Invoke(run, e);
         }
 
         /// <summary>
@@ -249,6 +260,33 @@ namespace ReversalTower.Boss
         public bool ResolveHitAt(PatternRun run, HitEvent e, Rect r, HashSet<IBossAttackReceiver> touched, bool fromProjectile = false)
         {
             var cols = Physics2D.OverlapBoxAll(r.center, r.size, 0f, targetMask);
+            return ResolveColliders(run, e, cols, r.center.x, touched, fromProjectile, out _);
+        }
+
+        /// <summary>
+        /// 기울어진 직사각형 판정 (성운의 파편 별빛 줄기처럼 비스듬히 날아가는 판정).
+        /// 로그·이벤트는 ResolveHitAt과 같다.
+        /// </summary>
+        /// <param name="result">이번 호출에서 새로 맞은 대상의 결과. 새로 맞은 대상이 없으면 Missed</param>
+        public bool ResolveHitBox(PatternRun run, HitEvent e, Vector2 center, Vector2 size, float angle,
+                                  HashSet<IBossAttackReceiver> touched, out HitResult result, bool fromProjectile = false)
+        {
+            var cols = Physics2D.OverlapBoxAll(center, size, angle, targetMask);
+            return ResolveColliders(run, e, cols, center.x, touched, fromProjectile, out result);
+        }
+
+        /// <summary>원형 판정 (유도 광탄, 폭발). 로그·이벤트는 ResolveHitAt과 같다.</summary>
+        public bool ResolveHitCircle(PatternRun run, HitEvent e, Vector2 center, float radius,
+                                     HashSet<IBossAttackReceiver> touched, out HitResult result, bool fromProjectile = false)
+        {
+            var cols = Physics2D.OverlapCircleAll(center, radius, targetMask);
+            return ResolveColliders(run, e, cols, center.x, touched, fromProjectile, out result);
+        }
+
+        bool ResolveColliders(PatternRun run, HitEvent e, Collider2D[] cols, float sourceX,
+                              HashSet<IBossAttackReceiver> touched, bool fromProjectile, out HitResult lastResult)
+        {
+            lastResult = HitResult.Missed;
             bool contact = false;
 
             foreach (var c in cols)
@@ -265,12 +303,13 @@ namespace ReversalTower.Boss
                     HitIndex = e.Index,
                     Damage = e.Damage,
                     Knockback = e.Source.knockback,
-                    Direction = c.bounds.center.x >= r.center.x ? 1 : -1,
+                    Direction = c.bounds.center.x >= sourceX ? 1 : -1,
                     Parryable = e.Source.parryable,
                     IgnoresDodge = e.Source.ignoresDodge,
                     FromProjectile = fromProjectile,
                 };
                 var result = receiver.ReceiveBossHit(info);
+                lastResult = result;
 
                 if (logToConsole)
                 {
@@ -569,6 +608,9 @@ namespace ReversalTower.Boss
             foreach (var h in p.hits)
             {
                 if (h == null) continue;
+
+                // 월드 좌표 판정(빛 기둥, 장판 등)은 실행기가 정하므로 보스 앞에 그리지 않는다
+                if (h.carrier == HitCarrier.World) continue;
 
                 // 투사체가 들고 가는 판정은 보스 앞에 그리면 거짓말이 되므로 생성 위치에 그린다
                 if (h.carrier == HitCarrier.Projectile)
