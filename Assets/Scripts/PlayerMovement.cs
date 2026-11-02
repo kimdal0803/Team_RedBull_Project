@@ -2622,74 +2622,28 @@ private IEnumerator WCooldownRoutine()
 
     /// <summary>
     /// 저장된 로비 카드(progress.json)를 고른 순서대로 이 플레이어의 기본값 위에 쌓는다 (Start에서 1번).
-    /// 디버그 패널로 덮어쓴 스탯(saved*)은 그 값에 이미 들어 있으므로 건너뛴다.
+    /// 하한·정수 처리는 ApplySingleBuff와 같다 (공격력·체력 최소 1, 속도·점프 최소 1).
+    /// 디버그 패널로 덮어쓴 스탯(saved*)은 그 값을 그대로 쓰고 건너뛴다.
     /// </summary>
     private void ApplyPermanentCards()
     {
-        var picks = ReversalTower.Progress.ProgressStore.Current.picks;
-        foreach (var pick in picks)
+        foreach (var pick in ReversalTower.Progress.ProgressStore.Current.picks)
         {
-            if (IsStatOverridden(pick.stat)) continue;
-            ApplyPermanentPick(pick.stat, pick.value, false);
+            switch (pick.stat)
+            {
+                case StatType.Attack:
+                    if (savedAttack == -1) baseAttackDamage = Mathf.Max(1, baseAttackDamage + (int)pick.value);
+                    break;
+                case StatType.Health:
+                    if (savedMaxHp == -1) maxHealth = Mathf.Max(1, maxHealth + (int)pick.value);
+                    break;
+                case StatType.Speed:
+                    if (savedSpeed == -1f) moveSpeed = Mathf.Max(1f, moveSpeed + pick.value);
+                    break;
+                case StatType.JumpPower:
+                    if (savedJump == -1f) jumpForce = Mathf.Max(1f, jumpForce + pick.value);
+                    break;
+            }
         }
-    }
-
-    /// <summary>
-    /// 로비 카드 한 장의 수치를 더한다. 하한·정수 처리는 ApplySingleBuff와 같다 (공격력·체력 최소 1, 속도·점프 최소 1).
-    /// live = true: 로비에서 방금 고른 카드 — 현재 체력과 체력바도 같이 바꾼다.
-    /// 저장은 하지 않는다 (BuffGachaManager가 저장한 뒤 부름).
-    /// </summary>
-    public void ApplyPermanentPick(
-        StatType statType,
-        float delta,
-        bool live)
-    {
-        switch (statType)
-        {
-            case StatType.Attack:
-                baseAttackDamage = Mathf.Max(1, baseAttackDamage + (int)delta);
-                if (live && savedAttack != -1) savedAttack = baseAttackDamage;
-                break;
-
-            case StatType.Health:
-                maxHealth = Mathf.Max(1, maxHealth + (int)delta);
-                if (live && savedMaxHp != -1) savedMaxHp = maxHealth;
-                if (live)
-                {
-                    _currentHealth = Mathf.Max(1, Mathf.Min(_currentHealth + (int)delta, maxHealth));
-                    if (playerUI != null)
-                        playerUI.UpdateHPBar(_currentHealth, maxHealth);
-                }
-                break;
-
-            case StatType.Speed:
-                moveSpeed = Mathf.Max(1f, moveSpeed + delta);
-                if (live && savedSpeed != -1f) savedSpeed = moveSpeed;
-                break;
-
-            case StatType.JumpPower:
-                jumpForce = Mathf.Max(1f, jumpForce + delta);
-                if (live && savedJump != -1f) savedJump = jumpForce;
-                break;
-        }
-
-        if (live)
-        {
-            Debug.Log(
-                $"<color=cyan>[로비 카드 적용] 공격력 {baseAttackDamage} · 최대 체력 {maxHealth} · " +
-                $"이동 속도 {moveSpeed:F1} · 점프력 {jumpForce:F1}</color>");
-        }
-    }
-
-    private static bool IsStatOverridden(StatType statType)
-    {
-        return statType switch
-        {
-            StatType.Attack => savedAttack != -1,
-            StatType.Health => savedMaxHp != -1,
-            StatType.Speed => savedSpeed != -1f,
-            StatType.JumpPower => savedJump != -1f,
-            _ => false
-        };
     }
 }

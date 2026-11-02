@@ -23,6 +23,9 @@ namespace ReversalTower.Progress
     {
         const string FileName = "progress.json";
 
+        /// <summary>전투 기록을 몇 개까지 남길지</summary>
+        public const int HistoryLimit = 30;
+
         static ProgressData current;
 
         public static string SavePath => Path.Combine(Application.persistentDataPath, FileName);
@@ -106,6 +109,35 @@ namespace ReversalTower.Progress
                 }
             }
             if (offerBroken || d.cardChosen) d.offer.Clear();
+
+            if (d.clearedBosses == null) d.clearedBosses = new System.Collections.Generic.List<string>();
+            var ids = new System.Collections.Generic.List<string>();
+            foreach (var id in d.clearedBosses)
+            {
+                if (string.IsNullOrWhiteSpace(id)) continue;
+                if (!ids.Exists(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase))) ids.Add(id.Trim());
+            }
+            d.clearedBosses = ids;
+
+            if (d.history == null) d.history = new System.Collections.Generic.List<BattleRecord>();
+            d.history.RemoveAll(h => h == null);
+            foreach (var h in d.history)
+            {
+                h.damage = Mathf.Max(0, h.damage);
+                h.parries = Mathf.Max(0, h.parries);
+                h.gold = Mathf.Max(0, h.gold);
+                if (float.IsNaN(h.seconds) || float.IsInfinity(h.seconds) || h.seconds < 0f) h.seconds = 0f;
+                if (h.boss == null) h.boss = "";
+                if (h.date == null) h.date = "";
+            }
+            if (d.history.Count > HistoryLimit) d.history.RemoveRange(HistoryLimit, d.history.Count - HistoryLimit);
+        }
+
+        /// <summary>이 보스를 한 번이라도 처치했는지 (대소문자 무시)</summary>
+        public static bool IsCleared(string bossId)
+        {
+            if (string.IsNullOrEmpty(bossId)) return false;
+            return Current.clearedBosses.Exists(x => string.Equals(x, bossId, StringComparison.OrdinalIgnoreCase));
         }
 
         // ------------------------------------------------------------------ 쓰기
@@ -167,13 +199,25 @@ namespace ReversalTower.Progress
 
         // ------------------------------------------------------------------ 게임 쪽에서 부르는 것
 
-        /// <summary>전투 정산 때 (BattleStatsManager.SettleAndSaveGold) — 로비 카드 선택을 다시 연다.</summary>
-        public static void OnBattleSettled()
+        /// <summary>
+        /// 전투 정산 때 (BattleStatsManager.SettleAndSaveGold) — 로비 카드 선택을 다시 열고, 전투 기록과 처치한 보스를 남긴다.
+        /// </summary>
+        public static void OnBattleSettled(BattleRecord record = null)
         {
             var next = Clone(Current);
             next.cardChosen = false;
             next.offer.Clear();          // 다음 로비 방문 때 새 3장
             next.battles++;
+
+            if (record != null)
+            {
+                next.history.Insert(0, record);
+                if (record.clear && !string.IsNullOrWhiteSpace(record.boss)
+                    && !next.clearedBosses.Exists(x => string.Equals(x, record.boss, StringComparison.OrdinalIgnoreCase)))
+                {
+                    next.clearedBosses.Add(record.boss);
+                }
+            }
             Commit(next);
         }
 

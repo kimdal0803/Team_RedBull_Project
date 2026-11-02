@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using ReversalTower.Progress;
 using UnityEngine;
-using UnityEngine.UI;
 
 [System.Serializable]
 public class StatTierValues
@@ -28,35 +27,24 @@ public class TierDropRates
 }
 
 /// <summary>
-/// 로비 제단의 강화 카드 — 3장 중 1장 고르기.
+/// 로비 강화 카드의 규칙 (화면은 ReversalTower.Lobby.LobbyMenu가 그림).
 ///
-/// - 제단에서 ↑/W/E → 카드 3장이 바로 보인다 (비용·보유 골드 표시). 고를 때만 골드를 낸다.
+/// - 카드 3장은 스탯이 겹치지 않게 뽑고, 등급은 아래 확률로 정한다 (예전 가챠 규칙 그대로).
 /// - 3장은 progress.json에 저장된다 → 창을 닫았다 열거나 게임을 다시 켜도 그대로.
 /// - 로비 방문 1번에 1장. 전투 정산(BattleStatsManager.SettleAndSaveGold) 때 다시 열리고 새 3장이 뽑힌다.
-/// - 고른 강화는 저장되어 계속 쌓인다. 플레이어는 씬마다 자기 기본값 위에 다시 쌓는다 (PlayerMovement.ApplyPermanentCards).
-/// - 비용 = gachaCost + costStep × 지금까지 고른 장수.
-/// - 등급(하급~전설·혼돈)과 확률·수치는 예전 그대로 인스펙터/디버그 패널에서 조절한다.
-///   제단에 놓인 카드는 스탯·등급만 저장하고 수치는 열 때마다 지금 설정에서 읽는다.
+/// - 비용 = gachaCost + costStep × 지금까지 고른 장수. 고를 때만 골드를 낸다.
+/// - 고른 강화는 저장되어 계속 쌓이고, 플레이어가 씬마다 기본값 위에 다시 쌓는다 (PlayerMovement.ApplyPermanentCards).
+/// - 확률·수치는 인스펙터와 디버그 패널(F1)에서 조절한다. 놓인 카드는 스탯·등급만 저장하고 수치는 볼 때마다 지금 설정에서 읽는다.
 /// </summary>
 public class BuffGachaManager : MonoBehaviour
 {
     public static BuffGachaManager Instance { get; private set; }
 
-    [Header("플레이어 직접 연결")]
-    [SerializeField] private PlayerMovement playerMovement;
-
-    [Header("가챠 비용 및 골드 UI")]
+    [Header("비용")]
     [Tooltip("첫 카드 비용")]
-    [SerializeField] private int gachaCost = 10;
+    [SerializeField] private int gachaCost = 100;
     [Tooltip("카드를 한 장 고를 때마다 오르는 비용")]
     [SerializeField] private int costStep = 25;
-    [SerializeField] private Text goldWarningText;      // (확인창 전용 — 지금 흐름에서는 카드 창 아래 안내 문구를 씀)
-    [SerializeField] private Text lobbyGoldText;        // 로비 화면 골드 표시 텍스트
-
-    [Header("UI 패널 연결")]
-    [SerializeField] private GameObject confirmPanel;
-    [SerializeField] private GameObject gachaPanel;
-    [SerializeField] private BuffCardUI[] cardSlots;
 
     [Header("⭐ 등급별 등장 확률 (%)")]
     [SerializeField] public TierDropRates dropRates = new TierDropRates();
@@ -67,28 +55,20 @@ public class BuffGachaManager : MonoBehaviour
     [SerializeField] public StatTierValues speedValues = new StatTierValues { common = 0.1f, rare = 0.3f, epic = 0.5f, legendary = 1.0f, chaosMin = -5.0f, chaosMax = 5.0f };
     [SerializeField] public StatTierValues jumpValues = new StatTierValues { common = 1f, rare = 2f, epic = 3f, legendary = 5f, chaosMin = -10f, chaosMax = 10f };
 
-    public bool IsOpen => (confirmPanel != null && confirmPanel.activeSelf) ||
-                          (gachaPanel != null && gachaPanel.activeSelf);
+    /// <summary>카드 한 장을 고른 결과</summary>
+    public struct PickResult
+    {
+        public StatType stat;
+        public BuffTier tier;
+        public float value;
+        public int cost;
+    }
 
     /// <summary>다음 카드 한 장의 비용</summary>
     public int CurrentCost => Mathf.Max(0, gachaCost + Mathf.Max(0, costStep) * ProgressStore.Current.picks.Count);
 
-    private enum PanelMode { Choose, Message }
-
-    private PanelMode mode = PanelMode.Message;
-    private readonly List<BuffOption> shownOptions = new List<BuffOption>();
-
-    // 카드 창 위·아래에 붙이는 문구와 버튼 (실행 중에 만듦 — 씬·프리팹은 그대로)
-    private bool uiBuilt;
-    private Text headerText;
-    private Text infoText;
-    private Text statusText;
-    private Button closeButton;
-    private Text closeLabel;
-
-    private const string Gold = "#FDCB00";
-    private const string Red = "#FF6B6B";
-    private const string Dim = "#C8C8C8";
+    /// <summary>이번 로비 방문에서 이미 골랐는지</summary>
+    public bool CardChosen => ProgressStore.Current.cardChosen;
 
     private void Awake()
     {
@@ -96,90 +76,36 @@ public class BuffGachaManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    private void Start()
+    private void OnDestroy()
     {
-        if (confirmPanel != null) confirmPanel.SetActive(false);
-        if (gachaPanel != null) gachaPanel.SetActive(false);
-        if (goldWarningText != null) goldWarningText.gameObject.SetActive(false);
-
-        EnsureUi();
-        UpdateLobbyGoldUI();
+        if (Instance == this) Instance = null;
     }
 
-    private void LateUpdate()
-    {
-        // ESC = 건너뛰기/닫기. (MenuManager는 이 창이 열려 있으면 ESC를 무시함 — 일시정지 메뉴와 겹치지 않게)
-        if (gachaPanel != null && gachaPanel.activeSelf && Input.GetKeyDown(KeyCode.Escape))
-        {
-            CloseCardPanel();
-        }
-    }
-
+    /// <summary>(디버그 패널 호환용) 메뉴형 로비는 골드를 매 프레임 다시 읽으므로 할 일이 없다.</summary>
     public void UpdateLobbyGoldUI()
     {
-        if (lobbyGoldText != null)
+    }
+
+    // =========================================================
+    // 놓인 3장
+    // =========================================================
+
+    /// <summary>
+    /// 지금 놓인 카드 3장 (수치는 현재 설정 기준). 없으면 새로 뽑아 저장한다.
+    /// 이번 방문에 이미 골랐으면 빈 목록.
+    /// </summary>
+    public List<BuffOption> GetOffer()
+    {
+        var options = new List<BuffOption>();
+        if (CardChosen) return options;
+
+        foreach (var slot in EnsureOffer())
         {
-            lobbyGoldText.text = $"{BattleStatsManager.GetCurrentGold()} G";
+            options.Add(CreateBuffOption(slot.stat, slot.tier));
         }
+        return options;
     }
 
-    // =========================================================
-    // 열기 / 닫기
-    // =========================================================
-
-    /// <summary>제단 상호작용 (AltarTrigger). 이름은 예전 그대로 — 이제 확인창 없이 카드 창을 바로 연다.</summary>
-    public void OpenConfirmDialog()
-    {
-        if (IsOpen) return;
-        OpenCardPanel();
-    }
-
-    /// <summary>(확인창 '취소' 버튼) 열린 창을 모두 닫는다.</summary>
-    public void OnClickCancel()
-    {
-        if (confirmPanel != null) confirmPanel.SetActive(false);
-        CloseCardPanel();
-    }
-
-    /// <summary>(확인창 '확인' 버튼) 예전 흐름과의 호환용 — 카드 창으로 넘어간다. 골드는 카드를 고를 때 낸다.</summary>
-    public void OnClickConfirm()
-    {
-        if (confirmPanel != null) confirmPanel.SetActive(false);
-        OpenCardPanel();
-    }
-
-    private void OpenCardPanel()
-    {
-        if (gachaPanel == null || cardSlots == null || cardSlots.Length < 3)
-        {
-            Debug.LogWarning("BuffGachaManager: gachaPanel 또는 카드 슬롯 3개가 연결되지 않았습니다!");
-            return;
-        }
-
-        EnsureUi();
-        gachaPanel.SetActive(true);
-        Time.timeScale = 0f;
-
-        if (ProgressStore.Current.cardChosen)
-        {
-            ShowAlreadyChosen();
-            return;
-        }
-
-        ShowOffer(EnsureOffer());
-    }
-
-    private void CloseCardPanel()
-    {
-        if (gachaPanel != null) gachaPanel.SetActive(false);
-        Time.timeScale = 1f;
-    }
-
-    // =========================================================
-    // 제단에 놓인 3장
-    // =========================================================
-
-    /// <summary>저장된 3장을 쓰고, 없으면 새로 뽑아 저장한다.</summary>
     private List<CardOfferSlot> EnsureOffer()
     {
         var data = ProgressStore.Current;
@@ -200,122 +126,61 @@ public class BuffGachaManager : MonoBehaviour
         return next.offer;
     }
 
-    private void ShowOffer(List<CardOfferSlot> offer)
-    {
-        mode = PanelMode.Choose;
-        shownOptions.Clear();
-
-        for (int i = 0; i < cardSlots.Length; i++)
-        {
-            if (cardSlots[i] == null) continue;
-            bool has = i < offer.Count;
-            cardSlots[i].gameObject.SetActive(has);
-            if (!has) continue;
-
-            BuffOption option = CreateBuffOption(offer[i].stat, offer[i].tier);
-            shownOptions.Add(option);
-            cardSlots[i].Setup(option);
-        }
-
-        int cost = CurrentCost;
-        int gold = BattleStatsManager.GetCurrentGold();
-        string goldPart = gold >= cost
-            ? $"보유 {gold}G"
-            : $"보유 {gold}G  <color={Red}>(부족)</color>";
-
-        SetHeader("강화 카드 — 한 장을 고르세요");
-        SetInfo($"비용 <color={Gold}>{cost}G</color>    ·    {goldPart}");
-        SetStatus($"{TotalsLine()}\n<color={Dim}>전투를 한 번 마칠 때마다 한 장 · 고른 강화는 게임을 꺼도 남습니다</color>");
-        SetClose("건너뛰기");
-    }
-
-    private void ShowMessage(string header, string info, string status)
-    {
-        mode = PanelMode.Message;
-        shownOptions.Clear();
-        foreach (var slot in cardSlots)
-        {
-            if (slot != null) slot.gameObject.SetActive(false);
-        }
-
-        SetHeader(header);
-        SetInfo(info);
-        SetStatus(status);
-        SetClose("닫기");
-    }
-
     // =========================================================
-    // 고르기 (카드 버튼 → BuffCardUI → 여기)
+    // 고르기
     // =========================================================
 
-    public void SelectBuff(BuffOption buff)
+    /// <summary>
+    /// index번째 카드를 고른다. 순서: 기록 저장 → 성공하면 골드 차감. 실패하면 아무것도 바뀌지 않고 error에 이유.
+    /// 플레이어 스탯은 다음 전투 씬에서 저장 기록을 읽어 적용된다.
+    /// </summary>
+    public bool TryPick(int index, out PickResult result, out string error)
     {
-        if (buff == null || mode != PanelMode.Choose || !shownOptions.Contains(buff)) return;
+        result = default;
+        error = null;
 
         var data = ProgressStore.Current;
         if (data.cardChosen)
         {
-            ShowAlreadyChosen();
-            return;
+            error = "이번 로비에서는 이미 골랐습니다 — 전투를 마치면 다시 열립니다";
+            return false;
+        }
+
+        var offer = EnsureOffer();
+        if (index < 0 || index >= offer.Count)
+        {
+            error = "카드를 찾지 못했습니다. 창을 닫고 다시 열어 주세요";
+            return false;
         }
 
         int cost = CurrentCost;
         int gold = BattleStatsManager.GetCurrentGold();
         if (gold < cost)
         {
-            Debug.LogWarning($"[로비 카드] 골드가 부족합니다! 필요 {cost}G / 보유 {gold}G");
-            SetStatus($"<color={Red}>골드가 부족합니다 — 필요 {cost}G / 보유 {gold}G</color>\n<color={Dim}>건너뛰고 전투에서 골드를 모아 오세요</color>");
-            return;
+            error = $"골드가 부족합니다 — 필요 {cost}G / 보유 {gold}G";
+            return false;
         }
 
-        float finalValue = ResolveValue(buff);
+        BuffOption option = CreateBuffOption(offer[index].stat, offer[index].tier);
+        float finalValue = ResolveValue(option);
 
-        // 1) 기록 먼저 저장 — 실패하면 아무것도 바꾸지 않는다
         var next = ProgressStore.Clone(data);
-        next.picks.Add(new CardPick { stat = buff.statType, tier = buff.tier, value = finalValue, cost = cost });
+        next.picks.Add(new CardPick { stat = option.statType, tier = option.tier, value = finalValue, cost = cost });
         next.cardChosen = true;
         next.offer.Clear();
 
         if (!ProgressStore.Commit(next))
         {
-            SetStatus($"<color={Red}>저장에 실패해 강화를 적용하지 않았습니다 (골드는 그대로입니다)</color>\n<color={Dim}>{ProgressStore.LastError}</color>");
-            return;
+            error = $"저장에 실패해 강화를 적용하지 않았습니다 (골드는 그대로입니다) · {ProgressStore.LastError}";
+            return false;
         }
 
-        // 2) 저장이 끝난 뒤에만 골드를 빼고 지금 플레이어에 반영
+        // 기록이 저장된 뒤에만 골드를 뺀다
         BattleStatsManager.ConsumeGold(cost);
 
-        if (playerMovement != null)
-        {
-            playerMovement.ApplyPermanentPick(buff.statType, finalValue, true);
-        }
-        else
-        {
-            Debug.LogWarning("BuffGachaManager: playerMovement가 인스펙터에 연결되지 않았습니다! (강화는 저장됐고 다음 씬부터 적용됩니다)");
-        }
-
-        UpdateLobbyGoldUI();
-        PlayerUI playerUI = Object.FindAnyObjectByType<PlayerUI>();
-        if (playerUI != null) playerUI.UpdateStatusTexts();
-
-        Debug.Log($"<color=yellow>[로비 카드] {TierName(buff.tier)} {StatName(buff.statType)} {Signed(buff.statType, finalValue)} · {cost}G 사용 · 남은 골드 {BattleStatsManager.GetCurrentGold()}G</color>");
-
-        string result = buff.tier == BuffTier.Chaos
-            ? $"혼돈의 주사위 → {StatName(buff.statType)} <color={Gold}>{Signed(buff.statType, finalValue)}</color>"
-            : $"[ {TierName(buff.tier)} ]  {StatName(buff.statType)} <color={Gold}>{Signed(buff.statType, finalValue)}</color>";
-
-        ShowMessage(
-            "강화 완료",
-            result,
-            $"{TotalsLine()}\n<color={Dim}>남은 골드 {BattleStatsManager.GetCurrentGold()}G · 다음 카드는 전투를 마치고 오면 열립니다</color>");
-    }
-
-    private void ShowAlreadyChosen()
-    {
-        ShowMessage(
-            "이번 방문의 강화는 이미 골랐습니다",
-            TotalsLine(),
-            $"<color={Dim}>전투를 마치고 돌아오면 새 카드 3장이 열립니다</color>");
+        result = new PickResult { stat = option.statType, tier = option.tier, value = finalValue, cost = cost };
+        Debug.Log($"<color=yellow>[로비 카드] {TierName(option.tier)} {StatName(option.statType)} {Signed(option.statType, finalValue)} · {cost}G 사용 · 남은 골드 {BattleStatsManager.GetCurrentGold()}G</color>");
+        return true;
     }
 
     /// <summary>실제로 오를 수치. 혼돈 등급은 고르는 순간 인스펙터 범위 안에서 정한다 (예전 규칙 그대로).</summary>
@@ -355,11 +220,11 @@ public class BuffGachaManager : MonoBehaviour
         Debug.Log("<color=yellow>[테스트] 로비 카드 선택을 다시 열었습니다 (새 3장).</color>");
     }
 
-    [ContextMenu("⭐ [테스트] 로비 카드 기록 전부 지우기")]
-    private void DebugResetCards()
+    [ContextMenu("⭐ [테스트] 진행 기록 전부 지우기 (카드·처치·전투 기록)")]
+    private void DebugResetProgress()
     {
         ProgressStore.ResetAll();
-        Debug.Log("<color=yellow>[테스트] 로비 카드 기록(progress.json)을 지웠습니다. 씬을 다시 시작하면 기본 스탯으로 돌아갑니다.</color>");
+        Debug.Log("<color=yellow>[테스트] progress.json을 지웠습니다. 골드는 그대로입니다.</color>");
     }
 
     // =========================================================
@@ -425,6 +290,16 @@ public class BuffGachaManager : MonoBehaviour
         };
     }
 
+    /// <summary>혼돈 등급의 범위 문구 ("-5 ~ +10")</summary>
+    public string ChaosRange(StatType stat)
+    {
+        StatTierValues setting = GetStatSetting(stat);
+        bool isSpeed = stat == StatType.Speed;
+        string minStr = isSpeed ? $"{setting.chaosMin:F1}" : $"{(int)setting.chaosMin}";
+        string maxStr = isSpeed ? $"{setting.chaosMax:F1}" : $"{(int)setting.chaosMax}";
+        return $"{minStr} ~ +{maxStr}";
+    }
+
     private BuffOption CreateBuffOption(StatType stat, BuffTier tier)
     {
         BuffOption buff = new BuffOption { statType = stat, tier = tier };
@@ -437,9 +312,7 @@ public class BuffGachaManager : MonoBehaviour
 
         if (tier == BuffTier.Chaos)
         {
-            string minStr = isSpeed ? $"{setting.chaosMin:F1}" : $"{(int)setting.chaosMin}";
-            string maxStr = isSpeed ? $"{setting.chaosMax:F1}" : $"{(int)setting.chaosMax}";
-            buff.description = $"{statName} {minStr} ~ +{maxStr}";
+            buff.description = $"{statName} {ChaosRange(stat)}";
         }
         else
         {
@@ -466,10 +339,10 @@ public class BuffGachaManager : MonoBehaviour
     }
 
     // =========================================================
-    // 문구
+    // 문구 (로비 화면에서도 씀)
     // =========================================================
 
-    private static string StatName(StatType stat) => stat switch
+    public static string StatName(StatType stat) => stat switch
     {
         StatType.Attack => "공격력",
         StatType.Health => "체력",
@@ -478,7 +351,7 @@ public class BuffGachaManager : MonoBehaviour
         _ => ""
     };
 
-    private static string TierName(BuffTier tier) => tier switch
+    public static string TierName(BuffTier tier) => tier switch
     {
         BuffTier.Common => "하급",
         BuffTier.Rare => "중급",
@@ -488,8 +361,8 @@ public class BuffGachaManager : MonoBehaviour
         _ => ""
     };
 
-    /// <summary>플레이어에 실제로 더해지는 모양 그대로 (공격력·체력은 정수로 잘림, 이동 속도는 카드처럼 소수 한 자리)</summary>
-    private static string Signed(StatType stat, float value)
+    /// <summary>플레이어에 실제로 더해지는 모양 그대로 (공격력·체력은 정수로 잘림, 이동 속도는 소수 한 자리)</summary>
+    public static string Signed(StatType stat, float value)
     {
         if (stat == StatType.Attack || stat == StatType.Health)
         {
@@ -505,125 +378,15 @@ public class BuffGachaManager : MonoBehaviour
         return value >= 0 ? $"+{s}" : s;
     }
 
-    /// <summary>"쌓인 강화: 공격력 +3 · 체력 +2 …" (아직 없으면 안내)</summary>
-    private static string TotalsLine()
+    /// <summary>지금까지 고른 카드에서 이 스탯이 오른 합 (공격력·체력은 장마다 정수로 잘라 더함)</summary>
+    public static float StatTotal(StatType stat)
     {
-        var picks = ProgressStore.Current.picks;
-        if (picks.Count == 0) return "아직 고른 강화가 없습니다";
-
-        var sums = new Dictionary<StatType, float>();
-        foreach (var p in picks)
+        float total = 0f;
+        foreach (var p in ProgressStore.Current.picks)
         {
-            float add = (p.stat == StatType.Attack || p.stat == StatType.Health) ? (int)p.value : p.value;
-            sums.TryGetValue(p.stat, out float s);
-            sums[p.stat] = s + add;
+            if (p.stat != stat) continue;
+            total += (stat == StatType.Attack || stat == StatType.Health) ? (int)p.value : p.value;
         }
-
-        var parts = new List<string>();
-        foreach (StatType stat in new[] { StatType.Attack, StatType.Health, StatType.Speed, StatType.JumpPower })
-        {
-            if (sums.TryGetValue(stat, out float total))
-                parts.Add($"{StatName(stat)} {Signed(stat, total)}");
-        }
-        return $"쌓인 강화 ({picks.Count}장):  " + string.Join("  ·  ", parts);
+        return total;
     }
-
-    // =========================================================
-    // 카드 창 문구·버튼 만들기
-    // =========================================================
-
-    private void EnsureUi()
-    {
-        if (uiBuilt || gachaPanel == null) return;
-        uiBuilt = true;
-
-        var panel = gachaPanel.transform as RectTransform;
-        Text sample = gachaPanel.GetComponentInChildren<Text>(true);
-        Font font = sample != null && sample.font != null
-            ? sample.font
-            : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-        headerText = MakeText("CardHeader", panel, font, 34, FontStyle.Bold, new Vector2(0f, 300f), new Vector2(1100f, 48f));
-        infoText = MakeText("CardInfo", panel, font, 24, FontStyle.Normal, new Vector2(0f, 252f), new Vector2(1100f, 36f));
-        statusText = MakeText("CardStatus", panel, font, 20, FontStyle.Normal, new Vector2(0f, -266f), new Vector2(1100f, 56f));
-
-        closeButton = MakeButton(panel, font, new Vector2(0f, -338f), new Vector2(170f, 48f));
-        closeLabel = closeButton != null ? closeButton.GetComponentInChildren<Text>(true) : null;
-    }
-
-    private static Text MakeText(string name, RectTransform parent, Font font, int size, FontStyle style, Vector2 pos, Vector2 box)
-    {
-        var go = new GameObject(name, typeof(RectTransform));
-        var rt = (RectTransform)go.transform;
-        rt.SetParent(parent, false);
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta = box;
-
-        var text = go.AddComponent<Text>();
-        text.font = font;
-        text.fontSize = size;
-        text.fontStyle = style;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = Color.white;
-        text.horizontalOverflow = HorizontalWrapMode.Wrap;
-        text.verticalOverflow = VerticalWrapMode.Overflow;
-        text.supportRichText = true;
-        text.raycastTarget = false;
-
-        var shadow = go.AddComponent<Shadow>();
-        shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
-        shadow.effectDistance = new Vector2(2f, -2f);
-        return text;
-    }
-
-    /// <summary>확인창의 '취소' 버튼을 본떠 카드 창 아래에 둔다 (없으면 단순한 버튼을 만든다).</summary>
-    private Button MakeButton(RectTransform parent, Font font, Vector2 pos, Vector2 box)
-    {
-        GameObject go = null;
-        Button template = FindButton(confirmPanel, "CancelButton");
-        if (template != null)
-        {
-            go = Instantiate(template.gameObject, parent, false);
-        }
-        else
-        {
-            go = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button));
-            go.transform.SetParent(parent, false);
-            go.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.15f, 0.95f);
-
-            var label = MakeText("Text", (RectTransform)go.transform, font, 22, FontStyle.Normal, Vector2.zero, box);
-            var lrt = (RectTransform)label.transform;
-            lrt.anchorMin = Vector2.zero;
-            lrt.anchorMax = Vector2.one;
-            lrt.sizeDelta = Vector2.zero;
-        }
-
-        go.name = "CardCloseButton";
-        go.SetActive(true);
-        var rt = (RectTransform)go.transform;
-        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = pos;
-        rt.sizeDelta = box;
-
-        var button = go.GetComponent<Button>();
-        button.onClick = new Button.ButtonClickedEvent();   // 본뜬 버튼의 원래 연결(OnClickCancel)을 떼어냄
-        button.onClick.AddListener(CloseCardPanel);
-        return button;
-    }
-
-    private static Button FindButton(GameObject root, string name)
-    {
-        if (root == null) return null;
-        foreach (var b in root.GetComponentsInChildren<Button>(true))
-        {
-            if (b.name == name) return b;
-        }
-        return null;
-    }
-
-    private void SetHeader(string s) { if (headerText != null) headerText.text = s; }
-    private void SetInfo(string s) { if (infoText != null) infoText.text = s; }
-    private void SetStatus(string s) { if (statusText != null) statusText.text = s; }
-    private void SetClose(string s) { if (closeLabel != null) closeLabel.text = s; }
 }
