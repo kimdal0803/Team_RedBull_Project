@@ -52,6 +52,9 @@ public class BattleStatsManager : MonoBehaviour
         PlayerPrefs.SetInt(GOLD_KEY, newTotalGold);
         PlayerPrefs.Save();
 
+        // 전투 하나가 끝났으니 로비 카드(3장 중 1장)를 다시 고를 수 있게 한다
+        ReversalTower.Progress.ProgressStore.OnBattleSettled();
+
         Debug.Log($"<color=green>[정산 완료] 획득: +{earnedGold}G | 누적: {newTotalGold}G</color>");
         return earnedGold;
     }
