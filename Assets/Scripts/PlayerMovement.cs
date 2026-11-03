@@ -282,6 +282,9 @@ public class PlayerMovement : MonoBehaviour
         if (savedJump != -1f)
             jumpForce = savedJump;
 
+        // 로비 카드로 쌓은 영구 강화 (progress.json) — 이 씬의 기본값 위에 다시 쌓는다
+        ApplyPermanentCards();
+
         _currentHealth = maxHealth;
 
         _currentPotionCount = maxPotionCount;
@@ -2610,6 +2613,37 @@ private IEnumerator WCooldownRoutine()
                 );
 
                 break;
+        }
+    }
+
+    // =========================================================
+    // 로비 카드 영구 강화
+    // =========================================================
+
+    /// <summary>
+    /// 저장된 로비 카드(progress.json)를 고른 순서대로 이 플레이어의 기본값 위에 쌓는다 (Start에서 1번).
+    /// 하한·정수 처리는 ApplySingleBuff와 같다 (공격력·체력 최소 1, 속도·점프 최소 1).
+    /// 디버그 패널로 덮어쓴 스탯(saved*)은 그 값을 그대로 쓰고 건너뛴다.
+    /// </summary>
+    private void ApplyPermanentCards()
+    {
+        foreach (var pick in ReversalTower.Progress.ProgressStore.Current.picks)
+        {
+            switch (pick.stat)
+            {
+                case StatType.Attack:
+                    if (savedAttack == -1) baseAttackDamage = Mathf.Max(1, baseAttackDamage + (int)pick.value);
+                    break;
+                case StatType.Health:
+                    if (savedMaxHp == -1) maxHealth = Mathf.Max(1, maxHealth + (int)pick.value);
+                    break;
+                case StatType.Speed:
+                    if (savedSpeed == -1f) moveSpeed = Mathf.Max(1f, moveSpeed + pick.value);
+                    break;
+                case StatType.JumpPower:
+                    if (savedJump == -1f) jumpForce = Mathf.Max(1f, jumpForce + pick.value);
+                    break;
+            }
         }
     }
 }

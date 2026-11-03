@@ -141,6 +141,9 @@ public class MenuManager : MonoBehaviour
         PlayerMovement.savedSpeed = -1f;
         PlayerMovement.savedJump = -1f;
 
+        // 3. 진행 기록 (progress.json: 고른 강화, 로비에 놓인 카드 3장, 처치한 보스, 전투 기록)
+        ReversalTower.Progress.ProgressStore.ResetAll();
+
         Debug.Log("<color=cyan><b>[초기화 완료]</b> 모든 저장 데이터(골드: 0G, 강화 스탯 리셋)가 초기 상태로 복구되었습니다.</color>");
     }
 }

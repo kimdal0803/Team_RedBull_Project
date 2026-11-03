@@ -52,6 +52,19 @@ public class BattleStatsManager : MonoBehaviour
         PlayerPrefs.SetInt(GOLD_KEY, newTotalGold);
         PlayerPrefs.Save();
 
+        // 전투 하나가 끝났으니 로비 카드(3장 중 1장)를 다시 열고, 전투 기록·처치한 보스를 남긴다
+        var boss = Object.FindAnyObjectByType<ReversalTower.Boss.BossController>();
+        ReversalTower.Progress.ProgressStore.OnBattleSettled(new ReversalTower.Progress.BattleRecord
+        {
+            boss = boss != null ? boss.bossId : UnityEngine.SceneManagement.SceneManager.GetActiveScene().name,
+            clear = isBossKilled,
+            damage = totalDamageDealt,
+            parries = totalParryCount,
+            gold = earnedGold,
+            seconds = Time.timeSinceLevelLoad,
+            date = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm")
+        });
+
         Debug.Log($"<color=green>[정산 완료] 획득: +{earnedGold}G | 누적: {newTotalGold}G</color>");
         return earnedGold;
     }
